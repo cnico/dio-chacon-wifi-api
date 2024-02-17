@@ -135,6 +135,19 @@ testing = ["covdefaults (>=2.3)", "coverage (>=7.3.2)", "diff-cover (>=8)", "pyt
 typing = ["typing-extensions (>=4.8)"]
 
 [[package]]
+name = "flake8"
+version = "7.0.0"
+description = "the modular source code checker: pep8 pyflakes and co"
+category = "main"
+optional = false
+python-versions = ">=3.8.1"
+
+[package.dependencies]
+mccabe = ">=0.7.0,<0.8.0"
+pycodestyle = ">=2.11.0,<2.12.0"
+pyflakes = ">=3.2.0,<3.3.0"
+
+[[package]]
 name = "frozenlist"
 version = "1.4.1"
 description = "A list-like structure which implements collections.abc.MutableSequence"
@@ -168,6 +181,14 @@ description = "brain-dead simple config-ini parsing"
 category = "main"
 optional = false
 python-versions = ">=3.7"
+
+[[package]]
+name = "mccabe"
+version = "0.7.0"
+description = "McCabe checker, plugin for flake8"
+category = "main"
+optional = false
+python-versions = ">=3.6"
 
 [[package]]
 name = "multidict"
@@ -247,6 +268,22 @@ identify = ">=1.0.0"
 nodeenv = ">=0.11.1"
 pyyaml = ">=5.1"
 virtualenv = ">=20.10.0"
+
+[[package]]
+name = "pycodestyle"
+version = "2.11.1"
+description = "Python style guide checker"
+category = "main"
+optional = false
+python-versions = ">=3.8"
+
+[[package]]
+name = "pyflakes"
+version = "3.2.0"
+description = "passive checker of Python programs"
+category = "main"
+optional = false
+python-versions = ">=3.8"
 
 [[package]]
 name = "pytest"
@@ -346,7 +383,7 @@ multidict = ">=4.0"
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.10"
-content-hash = "d5c803194979118c104c33d390503dbd3efe3f14d7414372fc720582ac426945"
+content-hash = "fa73b3e47b15f3ef4253f6f9dde1f4aa8494c9bb2d7dd72c1eb57369898e9406"
 
 [metadata.files]
 aiohttp = []
@@ -360,10 +397,12 @@ colorama = []
 distlib = []
 exceptiongroup = []
 filelock = []
+flake8 = []
 frozenlist = []
 identify = []
 idna = []
 iniconfig = []
+mccabe = []
 multidict = []
 mypy-extensions = []
 nodeenv = []
@@ -372,6 +411,8 @@ pathspec = []
 platformdirs = []
 pluggy = []
 pre-commit = []
+pycodestyle = []
+pyflakes = []
 pytest = []
 pytest-asyncio = []
 pyyaml = []
