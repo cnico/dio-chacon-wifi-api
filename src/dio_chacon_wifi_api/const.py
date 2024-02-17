@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 """Consts for Dio Chacon wifi python client API."""
-
 from enum import Enum
 
 DIOCHACON_API_URL = "https://l4hfront-prod.chacon.cloud"

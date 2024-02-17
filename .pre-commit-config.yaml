@@ -13,6 +13,11 @@ repos:
     rev: v3.12.0
     hooks:
       - id: reorder-python-imports
+  - repo: https://github.com/pycqa/flake8
+    rev: '7.0.0'
+    hooks:
+      - id: flake8
+        additional_dependencies: [Flake8-pyproject]
   - repo: local
     hooks:
       - id: black
@@ -25,9 +30,3 @@ repos:
         entry: poetry run ruff . --fix
         language: system
         types: [python]
-      - id: flake8
-        name: flake8
-        entry: flake8
-        language: system
-        types: [python]
-        require_serial: true

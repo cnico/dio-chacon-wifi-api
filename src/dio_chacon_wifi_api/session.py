@@ -1,14 +1,13 @@
 # -*- coding: utf-8 -*-
 """Session manager for the DIO Chacon wifi API in order to maintain authentication token between calls.
 And context between the various websockets calls."""
-
-from .const import DIOCHACON_AUTH_URL
-from .const import DIOCHACON_WS_URL
-
 import json
 import logging
 
 import aiohttp
+
+from .const import DIOCHACON_AUTH_URL
+from .const import DIOCHACON_WS_URL
 
 _LOGGER = logging.getLogger(__name__)
 

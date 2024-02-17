@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 """Client for the DIO Chacon wifi API."""
-
 import logging
 from typing import Any
 
