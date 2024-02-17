@@ -9,6 +9,7 @@ from .session import DIOChaconClientSession
 
 _LOGGER = logging.getLogger(__name__)
 
+
 class DIOChaconAPIClient:
     """Proxy to the DIO Chacon wifi API."""
 
@@ -44,20 +45,20 @@ class DIOChaconAPIClient:
             await self._session.ws_disconnect()
 
     async def search_all_ids(self) -> Any:
-        """Search 
+        """Search
 
         Returns:
             A list of tuples composed of id and type.
         """
-        
+
         req_id = self._get_next_id()
 
         msg = {}
-        msg['method'] = 'GET'
-        msg['path'] = '/device'
-        msg['parameters'] = {}
-        msg['id'] = req_id
-        
+        msg["method"] = "GET"
+        msg["path"] = "/device"
+        msg["parameters"] = {}
+        msg["id"] = req_id
+
         _LOGGER.debug(f"request = {msg}")
         await (await self._get_session()).ws_send_message(msg)
 
@@ -65,17 +66,13 @@ class DIOChaconAPIClient:
         _LOGGER.debug(f"raw_results = {raw_results}")
 
         results = []
-        for device in raw_results['data']:
+        for device in raw_results["data"]:
             result = {}
-            result['id'] = device['id']
-            result['name'] = device['name']
-            result['type'] = DeviceTypeEnum(device['type']).name #Converts type to our constant definition
+            result["id"] = device["id"]
+            result["name"] = device["name"]
+            result["type"] = DeviceTypeEnum(device["type"]).name  # Converts type to our constant definition
             results.append(result)
 
-        #_LOGGER.debug(f"results = {results}")
+        # _LOGGER.debug(f"results = {results}")
 
         return results
-
-        
-
-

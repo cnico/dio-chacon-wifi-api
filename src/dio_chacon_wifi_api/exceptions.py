@@ -1,4 +1,5 @@
 """Exceptions for DIOChaconAPIClient."""
+
 from typing import Any
 
 

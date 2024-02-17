@@ -12,15 +12,16 @@ import aiohttp
 
 _LOGGER = logging.getLogger(__name__)
 
-class DIOChaconClientSession():
+
+class DIOChaconClientSession:
     """HTTP session manager for DIO Chacon API.
 
     This session object allows to manage the authentication
     in the API using a token.
     """
 
-    _sessionToken : str = None
-    _aiohttp_session : aiohttp.ClientSession | None = None
+    _sessionToken: str = None
+    _aiohttp_session: aiohttp.ClientSession | None = None
     _websocket: aiohttp.ClientWebSocketResponse | None = None
 
     def __init__(self, login_email: str, password: str) -> None:
@@ -33,12 +34,11 @@ class DIOChaconClientSession():
         self._login_email = login_email
         self._password = password
 
-
     async def login(self) -> None:
         data = {}
-        data['email'] = self._login_email
-        data['password'] = self._password
-        data['installationId'] = 'noid'
+        data["email"] = self._login_email
+        data["password"] = self._password
+        data["installationId"] = "noid"
         payload_data = json.dumps(data)
 
         # Authenticate with user and pass and store bearer token
@@ -72,17 +72,15 @@ class DIOChaconClientSession():
             _LOGGER.debug("SessionToken of authentication : " + self._sessionToken)
 
     async def ws_connect(self) -> None:
-        """Make a connection to the server via websocket protocol.
-        """
+        """Make a connection to the server via websocket protocol."""
         url = DIOCHACON_WS_URL + "?sessionToken=" + self._sessionToken
 
-        #Simply keep the websocket object for further usage.
+        # Simply keep the websocket object for further usage.
         self._websocket = await self._aiohttp_session.ws_connect(url=url, autoping=True)
 
     async def ws_disconnect(self) -> None:
         await self._websocket.close()
         await self._aiohttp_session.close()
-
 
     async def ws_send_message(self, msg) -> None:
         """Sends a message in the websocket by converting it to json.
@@ -91,7 +89,6 @@ class DIOChaconClientSession():
             msg: the message to be sent
         """
         await self._websocket.send_str(json.dumps(msg))
-    
+
     async def ws_receive_msg(self):
         return await self._websocket.receive_json()
-

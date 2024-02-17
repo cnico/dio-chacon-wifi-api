@@ -3,7 +3,7 @@ name = "dio-chacon-wifi-api"
 version = "0.1.0"
 description = "Python library for DIO Chacon wifi's protocol for shutters and switches"
 authors = ["cnico"]
-license = "GPL v3"
+license = "GNU Lesser General Public License v3 or later (LGPLv3+)"
 readme = "README.md"
 homepage = "https://github.com/cnico/dio-chacon-wifi-api"
 repository = "https://github.com/cnico/dio-chacon-wifi-api"
@@ -13,12 +13,15 @@ classifiers = [
     "Operating System :: OS Independent",
     "Development Status :: 5 - Production/Stable",
     "Programming Language :: Python :: 3",
-    "License :: OSI Approved :: GPL v3",
 ]
 
 [tool.poetry.dependencies]
 python = "^3.10"
 aiohttp = "^3.9.3"
+black = "^24.2.0"
+ruff = "^0.2.1"
+pytest = "^8.0.1"
+pre-commit = "^3.6.1"
 
 [tool.poetry.dev-dependencies]
 pytest = "^8.0.0"
@@ -31,3 +34,12 @@ build-backend = "poetry.core.masonry.api"
 [tool.pytest.ini_options]
 log_cli = true
 log_cli_level = "DEBUG"
+
+# Cf : https://laszlo.substack.com/p/cq4ds-python-project-from-scratch
+[tool.black]
+skip-string-normalization = true
+line-length = 120
+
+[tool.ruff]
+# Same as Black.
+line-length = 120
