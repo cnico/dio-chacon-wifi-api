@@ -2,9 +2,9 @@
 Here is a description of the wifi protocol to be used through the chacon's cloud in order to connect and handle DIO devices (REV-SHUTTER or REV-LIGHT).
 
 # Connection :
-To connect to the cloud service, use this type of REST request : 
+To connect to the cloud service, use this type of REST request :
 Server Url : https://l4hfront-prod.chacon.cloud/api/session/login
-Content : 
+Content :
 
     {"email":"USER","password":"PASSWORD","installationId":"top"}
 
@@ -12,26 +12,47 @@ USER is to be replaced by your user's mail.
 PASSWORD is to be replaced by your password.
 installationId should have the value of your installation instance but we send it an arbitrary content here.
 
-Typical answer : 
+Typical answer :
 
     {"status":200,"data":{"sessionToken":"r:9deb0bfeb982314029166810e940f3ab"}}
 
 Then switch to WebSockets since devices actions and states are handled via a websocket connection.
-Url for websockets switching : 
+Url for websockets switching :
 l4hfront-prod.chacon.cloud/ws?sessionToken=r:9deb0bfeb982314029166810e940f3ab
 
-At connection, it responds with a content like : 
+At connection, it responds with a content like :
 
     {"name":"connection","action":"success","data":""}
 
-# Devices retrieval : 
-Send this content to the web socket : 
+# User info retrieval :
+Send this content to the web socket :
 
-    {"method":"GET","path":"/device","parameters":{},"id":1}
+    {"method":"GET","path":"/user","parameters":{},"id":1}
 
 Note : the id attribute for each request has to be incremented since the response always contains an id that corresponds to the question.
 
-The response will be of the following type (I replaced some content with dots) : 
+The response will be of the following type (I replaced some content with dots) :
+
+    {
+        "id": 2,
+        "status": 200,
+        "data": {
+            "id": "...",
+            "name": "... ",
+            "email": "...",
+            "isNewsletter": true,
+            "isPromoNotification": true,
+            "isAIImageObjectDetection": true,
+            "bleKey": "..."
+        }
+    }
+
+# Devices retrieval :
+Send this content to the web socket :
+
+    {"method":"GET","path":"/device","parameters":{},"id":1}
+
+The response will be of the following type (I replaced some content with dots) :
 
     {
     "id": 1,
@@ -61,11 +82,11 @@ The response will be of the following type (I replaced some content with dots) :
 For a switch, type will be : .dio1.wifi.genericSwitch.switch.
 
 
-# Devices position retrieval : 
+# Devices position retrieval :
 
     {"method":"POST","path":"/device/states","parameters":{"devices":["L4HActuator_...", ... ]},"id":22}
 
-Will return the status of every given device via such an answer : 
+Will return the status of every given device via such an answer :
 
     {
     "id": 22,
@@ -132,9 +153,9 @@ Will return the status of every given device via such an answer :
 
 Relevant informations are the movement attribute describing if the shutter is moving up, down or stopped ; the openlevel and the shuttercalibration.
 
-# Shutter device action : 
+# Shutter device action :
 
-"stop", "up" or "down" action : 
+"stop", "up" or "down" action :
 
     {"method":"POST","path":"/device/L4HActuator_.../action/mvtlinear","parameters":{"movement":"down"},"id":8}
 
@@ -158,11 +179,11 @@ Action to set a given position, for exemple 75% opened :
 
 NOTE : For group actions or multiple shutter, simply send as many json request as shutters to act on.
 
-# Device light retrieval : 
+# Device light retrieval :
 
     {"method":"POST","path":"/device/states","parameters":{"devices":["L4HActuator_...", ... ]},"id":22}
 
-Will return the status of every given device via such an answer : 
+Will return the status of every given device via such an answer :
 
     {
     "id": 6,
@@ -219,6 +240,20 @@ The oic.r.switch.binary gives the information if the light is on or off.
 
 Possible values are 0 or 1 to switch on or off.
 
-# Disconnecting : 
+# Disconnecting :
 
     {"method":"POST","path":"/session/logout","parameters":{},"id":13}
+
+# Other API verbs not implemented by this lib :
+Via the Web socket, send either one of this request :
+
+For rooms definitions retrieval :
+
+    {"method":"GET","path":"/room","parameters":{},"id":3}
+
+For groups definitions retrieval :
+
+    {"method":"GET","path":"/group","parameters":{},"id":4}
+
+For static content in the mobile app :
+    {"method":"GET","path":"/static/all","parameters":{},"id":5}
