@@ -95,7 +95,8 @@ class DIOChaconClientSession:
         self._listen_task = asyncio.create_task(self._listen())
 
     async def _listen(self) -> None:
-        """Close the listening websocket."""
+        """Listen to messages"""
+        # Infinite loop to listen to messages on the websocket and manage retries.
         self._failed_attempts = 0
         while self._state != STATE_STOPPED:
             await self._running()
@@ -149,7 +150,8 @@ class DIOChaconClientSession:
         self._state = STATE_STOPPED
         await self._websocket.close()
         await self._aiohttp_session.close()
-        await asyncio.sleep(0.5)  # Let the _listen infinite loop terminate correctly with STATE_STOPPED signal.
+        # Let the _listen infinite loop terminate correctly with STATE_STOPPED signal.
+        await asyncio.sleep(0.5)
 
     async def ws_send_message(self, msg) -> None:
         """Sends a message in the websocket by converting it to json.

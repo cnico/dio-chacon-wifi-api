@@ -6,6 +6,7 @@ from typing import Any
 
 from .const import DeviceTypeEnum
 from .const import ShutterMoveEnum
+from .exceptions import DIOChaconAPIError
 from .session import DIOChaconClientSession
 
 _LOGGER = logging.getLogger(__name__)
@@ -20,13 +21,15 @@ class DIOChaconAPIClient:
         Args:
             email: string containing your email in DIO app
             password: string containing your password in DIO app
+            installation_id: a given unique id defining the client side installation
         """
         self._login_email = login_email
         self._password = password
         self._installation_id = installation_id
         self._session: DIOChaconClientSession | None = None
         self._id = 0
-        self._messages_queue: asyncio.Queue = asyncio.Queue()
+        self._messages_connection_queue: asyncio.Queue = asyncio.Queue()
+        self._messages_responses_queue: asyncio.Queue = asyncio.Queue()
 
     async def _get_session(self) -> DIOChaconClientSession:
         if self._session is None:
@@ -39,17 +42,36 @@ class DIOChaconAPIClient:
 
             await self._session.login()
             await self._session.ws_connect()
-            # Reception of the connection success message from the server.
-            data = await self._messages_queue.get()
-            if not (data["name"] and data["name"] == "connection" and data["action"] == "success"):
-                _LOGGER.error("Error connecting to the server ! %s", data)
-                # TODO : à gérer.
+
+            # Wait for the reception of the connection success message from the server.
+            try:
+                asyncio.wait_for(self._messages_connection_queue.get(), 10)
+            except TimeoutError:
+                _LOGGER.error("Error connecting to the server !")
+                raise DIOChaconAPIError("No connection aknowledge message received from the server !")
 
         return self._session
 
-    def _message_received_callback(self, data):
+    def _message_received_callback(self, data: Any) -> None:
+        """The callback called whenever a server side message is received.
+        Args:
+            data: the message which is a from json converted dict.
+        """
         _LOGGER.debug("Callback Websocket received data %s", data)
-        self._messages_queue.put_nowait(data)
+
+        if "name" in data and data["name"] == "connection" and data["action"] == "success":
+            # Sends the connection message in the dedicated queue
+            self._messages_connection_queue.put_nowait(data)
+            return
+
+        if "id" in data:
+            # Sends the response message which has the same id has the request
+            self._messages_responses_queue.put_nowait(data)
+            return
+
+        # TODO : manage messages that are state changes pushed from the server...
+
+        _LOGGER.warn("Unknown message received : %s", data)
 
     def _get_next_id(self) -> int:
         self._id = self._id + 1
@@ -69,25 +91,12 @@ class DIOChaconAPIClient:
         await self._get_session()
         await self._session.ws_send_message(msg)
 
-        # TODO : ignore deviceState that has no id and send events for this...
-
-        # correlation_id_ok: bool = False
-
-        # TODO : implement callback.
-        raw_results = await self._messages_queue.get()
-        if "id" not in raw_results:
-            _LOGGER.error("Error in message received from the server ! %s", raw_results)
-            # TODO : à gérer.
+        raw_results = await self._messages_responses_queue.get()
+        if raw_results["id"] != req_id:
+            _LOGGER.error("The received message does not have a correct id. %s", raw_results)
+            raise DIOChaconAPIError("Unexpected message order with incorrect id !")
 
         return raw_results
-
-        # while not (correlation_id_ok):
-        #     raw_results = await (await self._get_session()).ws_receive_msg()
-        #     _LOGGER.debug(f"WS raw_results = {raw_results}")
-        #     if "id" in raw_results and raw_results["id"] == req_id:
-        #         correlation_id_ok = True
-
-        # return raw_results
 
     async def disconnect(self) -> None:
         if self._session:
