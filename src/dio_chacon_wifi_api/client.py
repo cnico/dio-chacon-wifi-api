@@ -15,7 +15,9 @@ _LOGGER = logging.getLogger(__name__)
 class DIOChaconAPIClient:
     """Proxy to the DIO Chacon wifi API."""
 
-    def __init__(self, login_email: str, password: str, installation_id: str = "noid") -> None:
+    def __init__(
+        self, login_email: str, password: str, installation_id: str = "noid", callback_device_state=None
+    ) -> None:
         """Initialize the API and authenticate so we can make requests.
 
         Args:
@@ -26,10 +28,12 @@ class DIOChaconAPIClient:
         self._login_email = login_email
         self._password = password
         self._installation_id = installation_id
+        self._callback_device_state = callback_device_state
         self._session: DIOChaconClientSession | None = None
         self._id = 0
         self._messages_connection_queue: asyncio.Queue = asyncio.Queue()
         self._messages_responses_queue: asyncio.Queue = asyncio.Queue()
+        self._messages_buffer: dict = dict()
 
     async def _get_session(self) -> DIOChaconClientSession:
         if self._session is None:
@@ -45,7 +49,9 @@ class DIOChaconAPIClient:
 
             # Wait for the reception of the connection success message from the server.
             try:
-                asyncio.wait_for(self._messages_connection_queue.get(), 10)
+                await asyncio.wait_for(self._messages_connection_queue.get(), 10)
+                # Do nothing of the connection successful message.
+                self._messages_connection_queue.task_done()
             except TimeoutError:
                 _LOGGER.error("Error connecting to the server !")
                 raise DIOChaconAPIError("No connection aknowledge message received from the server !")
@@ -69,13 +75,59 @@ class DIOChaconAPIClient:
             self._messages_responses_queue.put_nowait(data)
             return
 
-        # TODO : manage messages that are state changes pushed from the server...
+        if "name" in data and data["name"] == "deviceState" and data["action"] == "update":
+            # Sends the device state pushed from the server to the calling client
+            if self._callback_device_state:
+                # Sends only pertinent data :
+                result = {}
+                result["id"] = data["data"]["di"]
 
-        _LOGGER.warn("Unknown message received : %s", data)
+                for link in data["data"]["links"]:
+                    if link['rt'] == "oic.r.openlevel":
+                        result["openlevel"] = link["openLevel"]
+                    if link['rt'] == "oic.r.movement.linear":
+                        result["movement"] = link["movement"]
+
+                self._callback_device_state(result)
+                return
+            else:
+                _LOGGER.warning("No callback for device state notification ! You shoud implement one.")
+
+        _LOGGER.warning("Unknown message received and dropped : %s", data)
 
     def _get_next_id(self) -> int:
         self._id = self._id + 1
         return self._id
+
+    async def _consume_message_queue_and_cache_it(self) -> None:
+        while not self._messages_responses_queue.empty():
+            data = await self._messages_responses_queue.get()
+            msg_id: int = int(data["id"])
+            cached = self._messages_buffer.get(msg_id)
+            if not cached:
+                self._messages_buffer[msg_id] = data
+            self._messages_responses_queue.task_done()
+
+    async def _get_message_response_with_id(self, message_id: int) -> Any:
+
+        await self._consume_message_queue_and_cache_it()
+        cached = self._messages_buffer.get(message_id)
+        # Try another after a small sleep
+        if not cached:
+            await asyncio.sleep(0.5)
+            await self._consume_message_queue_and_cache_it()
+
+        cached = self._messages_buffer.get(message_id)
+        if not cached:
+            _LOGGER.error("No response received for message id : %s", message_id)
+            raise DIOChaconAPIError("Unexpected situation : no response with correct id !")
+
+        # Remove value from cache has it is considered as consumed
+        self._messages_buffer.pop(message_id)
+
+        _LOGGER.debug("Messages buffer in memory cached size = %s", len(self._messages_buffer))
+
+        return cached
 
     async def _send_ws_message(self, method: str, path: str, parameters: Any) -> Any:
         req_id = self._get_next_id()
@@ -91,10 +143,7 @@ class DIOChaconAPIClient:
         await self._get_session()
         await self._session.ws_send_message(msg)
 
-        raw_results = await self._messages_responses_queue.get()
-        if raw_results["id"] != req_id:
-            _LOGGER.error("The received message does not have a correct id. %s", raw_results)
-            raise DIOChaconAPIError("Unexpected message order with incorrect id !")
+        raw_results = await self._get_message_response_with_id(req_id)
 
         return raw_results
 
@@ -136,12 +185,39 @@ class DIOChaconAPIClient:
 
         return results
 
-    async def get_shutters_positions(self, ids: list) -> Any:
+    async def search_all_devices_with_position(self) -> dict:
+        """Search all the known devices with their positions (for shutters)
+
+        Returns:
+            A list of tuples composed of id, name, type, openlevel and movement.
+        """
+
+        raw_results = await self._send_ws_message("GET", "/device", {})
+
+        ids = []
+        results = dict()
+        for device in raw_results["data"]:
+            result = {}
+            id = device["id"]
+            result["id"] = id
+            ids.append(id)
+            result["name"] = device["name"]
+            result["type"] = DeviceTypeEnum.from_dio_api(device["type"])  # Converts type to our constant definition
+            results[id] = result
+
+        positions = await self.get_shutters_positions(ids)
+        for id in ids:
+            results[id]["openlevel"] = positions[id]["openlevel"]
+            results[id]["movement"] = positions[id]["movement"]
+
+        return results
+
+    async def get_shutters_positions(self, ids: list) -> dict:
 
         parameters = {'devices': ids}
         raw_results = await self._send_ws_message("POST", "/device/states", parameters)
 
-        results = []
+        results = dict()
         for device_key in raw_results['data']:
             device_data = raw_results['data'][device_key]
 
@@ -152,7 +228,7 @@ class DIOChaconAPIClient:
                     result["openlevel"] = link["openLevel"]
                 if link['rt'] == "oic.r.movement.linear":
                     result["movement"] = link["movement"]
-            results.append(result)
+            results[device_key] = result
         return results
 
     async def move_shutter_direction(self, shutter_id: str, direction: ShutterMoveEnum):

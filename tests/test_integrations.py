@@ -3,6 +3,7 @@
 import asyncio
 import logging
 import os
+from typing import Any
 
 import pytest
 from dio_chacon_wifi_api import DIOChaconAPIClient
@@ -35,16 +36,21 @@ if os.environ.get('PYDBG', None):
 async def test_integration_simple() -> None:
     """Connect then lists all the devices."""
 
+    def log_callback(data: Any) -> None:
+        _LOGGER.info("******** CALLBACK MESSAGE RECEIVED *******")
+        _LOGGER.info(data)
+        _LOGGER.info("******** CALLBACK MESSAGE DONE *******")
+
     # Init client
-    client = DIOChaconAPIClient(USERNAME, PASSWORD)
+    client = DIOChaconAPIClient(USERNAME, PASSWORD, callback_device_state=log_callback)
 
     user_id = await client.get_user_id()
     _LOGGER.info(f"User Id retrieved : {user_id}")
 
-    list_devices = await client.search_all_devices()
+    list_devices = await client.search_all_devices_with_position()
     _LOGGER.info(f"Devices found : {list_devices}")
 
-    my_device = list(filter(lambda d: d['id'] == MY_SHUTTER_ID, list_devices))[0]
+    my_device = list_devices[MY_SHUTTER_ID]
     _LOGGER.info(f"My device found {MY_SHUTTER_ID} : {my_device}")
     assert my_device['name'] == 'Test'
     assert my_device['type'] == DeviceTypeEnum.SHUTTER
