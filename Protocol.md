@@ -151,7 +151,8 @@ Will return the status of every given device via such an answer :
     }
     }
 
-Relevant informations are the movement attribute describing if the shutter is moving up, down or stopped ; the openlevel and the shuttercalibration.
+Relevant informations are the movement attribute describing if the shutter is moving up, down or stopped ; the openlevel and the shutter calibration.
+To know if a device is connected or disconnected from the wifi, in the 'rt'='oic.d.blind' section, the attribute 'rc' to 1 means the device is connected and to 0 is that it is disconnected.
 
 # Shutter device action :
 

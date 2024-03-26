@@ -80,9 +80,10 @@ class DIOChaconAPIClient:
             if self._callback_device_state:
                 # Sends only pertinent data :
                 result = {}
-                result["id"] = data["data"]["di"]
-
-                for link in data["data"]["links"]:
+                device_data = data["data"]
+                result["id"] = device_data["di"]
+                result["connected"] = device_data["rc"] == 1
+                for link in device_data["links"]:
                     if link['rt'] == "oic.r.openlevel":
                         result["openlevel"] = link["openLevel"]
                     if link['rt'] == "oic.r.movement.linear":
@@ -209,6 +210,7 @@ class DIOChaconAPIClient:
         for id in ids:
             results[id]["openlevel"] = positions[id]["openlevel"]
             results[id]["movement"] = positions[id]["movement"]
+            results[id]["connected"] = positions[id]["connected"]
 
         return results
 
@@ -223,6 +225,7 @@ class DIOChaconAPIClient:
 
             result = {}
             result["id"] = device_key
+            result["connected"] = device_data["rc"] == 1
             for link in device_data["links"]:
                 if link['rt'] == "oic.r.openlevel":
                     result["openlevel"] = link["openLevel"]

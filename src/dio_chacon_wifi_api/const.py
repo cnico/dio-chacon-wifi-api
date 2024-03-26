@@ -25,6 +25,6 @@ class DeviceTypeEnum(Enum):
 
 
 class ShutterMoveEnum(Enum):
-    UP = "UP"
-    STOP = "STOP"
-    DOWN = "DOWN"
+    UP = "up"
+    STOP = "stop"
+    DOWN = "down"
