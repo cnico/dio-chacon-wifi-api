@@ -204,6 +204,7 @@ class DIOChaconAPIClient:
             ids.append(id)
             result["name"] = device["name"]
             result["type"] = DeviceTypeEnum.from_dio_api(device["type"])  # Converts type to our constant definition
+            result["model"] = device["modelName"] + "_" + device["softwareVersion"]
             results[id] = result
 
         positions = await self.get_shutters_positions(ids)
