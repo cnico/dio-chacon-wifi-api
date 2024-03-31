@@ -88,7 +88,8 @@ class DIOChaconAPIClient:
                         result["openlevel"] = link["openLevel"]
                     if link['rt'] == "oic.r.movement.linear":
                         result["movement"] = link["movement"]
-
+                    if link['rt'] == "oic.r.switch.binary":
+                        result["is_on"] = link["value"] == 1
                 self._callback_device_state(result)
                 return
             else:
@@ -167,55 +168,54 @@ class DIOChaconAPIClient:
 
         return raw_results["data"]["id"]
 
-    async def search_all_devices(self) -> Any:
-        """Search all the known devices
+    async def search_all_devices(self, device_type_to_search: DeviceTypeEnum = None, with_state: bool = False) -> dict:
+        """Search all the known devices with their states : positions for shutters and on/off for lights
+
+        Args:
+            device_type_to_search: the device type to search for. None means to return all type (SHUTTERS and LIGHTS)
+            with_state: True to return the detailed states like shutter position and light on or off.
 
         Returns:
-            A list of tuples composed of id, name and type.
+            A list of tuples composed of id, name, type, openlevel and movement for shutter, is_on for light.
         """
 
         raw_results = await self._send_ws_message("GET", "/device", {})
 
-        results = []
-        for device in raw_results["data"]:
-            result = {}
-            result["id"] = device["id"]
-            result["name"] = device["name"]
-            result["type"] = DeviceTypeEnum.from_dio_api(device["type"])  # Converts type to our constant definition
-            results.append(result)
-
-        return results
-
-    async def search_all_devices_with_position(self) -> dict:
-        """Search all the known devices with their positions (for shutters)
-
-        Returns:
-            A list of tuples composed of id, name, type, openlevel and movement.
-        """
-
-        raw_results = await self._send_ws_message("GET", "/device", {})
-
-        ids = []
         results = dict()
+        ids = []
         for device in raw_results["data"]:
             result = {}
             id = device["id"]
-            result["id"] = id
-            ids.append(id)
-            result["name"] = device["name"]
-            result["type"] = DeviceTypeEnum.from_dio_api(device["type"])  # Converts type to our constant definition
-            result["model"] = device["modelName"] + "_" + device["softwareVersion"]
-            results[id] = result
+            type = device["type"]
+            if not device_type_to_search or device_type_to_search.equals(type):
+                ids.append(id)
+                result["id"] = id
+                result["name"] = device["name"]
+                result["type"] = DeviceTypeEnum.from_dio_api(type)  # Converts type to our constant definition
+                result["model"] = device["modelName"] + "_" + device["softwareVersion"]
+                results[id] = result
 
-        positions = await self.get_shutters_positions(ids)
-        for id in ids:
-            results[id]["openlevel"] = positions[id]["openlevel"]
-            results[id]["movement"] = positions[id]["movement"]
-            results[id]["connected"] = positions[id]["connected"]
+        if with_state:
+            details = await self.get_status_details(ids)
+            for id in ids:
+                results[id]["connected"] = details[id]["connected"]
+                if "openlevel" in details[id]:
+                    results[id]["openlevel"] = details[id]["openlevel"]
+                    results[id]["movement"] = details[id]["movement"]
+                if "is_on" in details[id]:
+                    results[id]["is_on"] = details[id]["is_on"]
 
         return results
 
-    async def get_shutters_positions(self, ids: list) -> dict:
+    async def get_status_details(self, ids: list) -> dict:
+        """Retrieves the status detailed of devices ids given
+
+        Args:
+            ids: the device ids to search details for.
+
+        Returns:
+            A list of tuples composed of id, connected ; openlevel and movement for shutter, is_on for light.
+        """
 
         parameters = {'devices': ids}
         raw_results = await self._send_ws_message("POST", "/device/states", parameters)
@@ -232,15 +232,20 @@ class DIOChaconAPIClient:
                     result["openlevel"] = link["openLevel"]
                 if link['rt'] == "oic.r.movement.linear":
                     result["movement"] = link["movement"]
+                if link['rt'] == "oic.r.switch.binary":
+                    result["is_on"] = link["value"] == 1
             results[device_key] = result
         return results
 
     async def move_shutter_direction(self, shutter_id: str, direction: ShutterMoveEnum):
         parameters = {'movement': direction.value.lower()}
         await self._send_ws_message("POST", f"/device/{shutter_id}/action/mvtlinear", parameters)
-        # TODO : handle error in response...
 
     async def move_shutter_percentage(self, shutter_id: str, openlevel: int):
         parameters = {'openLevel': openlevel}
         await self._send_ws_message("POST", f"/device/{shutter_id}/action/openlevel", parameters)
-        # TODO : handle error in response...
+
+    async def switch_light(self, switch_id: str, set_on: bool):
+        val = 1 if set_on else 0
+        parameters = {'value': val}
+        await self._send_ws_message("POST", f"/device/{switch_id}/action/switch", parameters)

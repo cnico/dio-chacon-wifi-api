@@ -47,7 +47,7 @@ async def test_integration_simple() -> None:
     user_id = await client.get_user_id()
     _LOGGER.info(f"User Id retrieved : {user_id}")
 
-    list_devices = await client.search_all_devices_with_position()
+    list_devices = await client.search_all_devices(device_type_to_search=DeviceTypeEnum.SHUTTER, with_state=False)
     _LOGGER.info(f"Devices found : {list_devices}")
 
     my_device = list_devices[MY_SHUTTER_ID]
@@ -56,7 +56,7 @@ async def test_integration_simple() -> None:
     assert my_device['type'] == DeviceTypeEnum.SHUTTER
 
     # get shutter position
-    list_pos = await client.get_shutters_positions([MY_SHUTTER_ID])
+    list_pos = await client.get_status_details([MY_SHUTTER_ID])
     _LOGGER.info(f"Positions found : {list_pos}")
 
     _LOGGER.info("---------- Moving UP ---------")
@@ -64,7 +64,7 @@ async def test_integration_simple() -> None:
 
     await asyncio.sleep(10)
 
-    list_pos = await client.get_shutters_positions([MY_SHUTTER_ID])
+    list_pos = await client.get_status_details([MY_SHUTTER_ID])
     _LOGGER.info(f"Positions found after move UP: {list_pos}")
 
     _LOGGER.info("---------- Moving 75% ---------")
@@ -72,7 +72,7 @@ async def test_integration_simple() -> None:
 
     await asyncio.sleep(10)
 
-    list_pos = await client.get_shutters_positions([MY_SHUTTER_ID])
+    list_pos = await client.get_status_details([MY_SHUTTER_ID])
     _LOGGER.info(f"Positions found after move 75%: {list_pos}")
 
     _LOGGER.info("End of integration tests : deconnecting...")
