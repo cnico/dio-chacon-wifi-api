@@ -5,11 +5,14 @@ import logging
 from typing import Any
 
 from .const import DeviceTypeEnum
+from .const import LightOnOffEnum
 from .const import ShutterMoveEnum
 from .exceptions import DIOChaconAPIError
 from .session import DIOChaconClientSession
 
 _LOGGER = logging.getLogger(__name__)
+
+_init_lock = asyncio.Lock()
 
 
 class DIOChaconAPIClient:
@@ -35,35 +38,39 @@ class DIOChaconAPIClient:
         self._messages_responses_queue: asyncio.Queue = asyncio.Queue()
         self._messages_buffer: dict = dict()
 
-    async def _get_session(self) -> DIOChaconClientSession:
+    async def _init_session(self) -> None:
         if self._session is None:
+            async with _init_lock:
+                if self._session is None:
+                    _LOGGER.debug("Session creation via _init_session()")
 
-            _LOGGER.debug("Session creation via _get_session()")
+                    session = DIOChaconClientSession(
+                        self._login_email, self._password, self._installation_id, self._message_received_callback
+                    )
 
-            self._session = DIOChaconClientSession(
-                self._login_email, self._password, self._installation_id, self._message_received_callback
-            )
+                    await session.login()
+                    await session.ws_connect()
 
-            await self._session.login()
-            await self._session.ws_connect()
+                    # Wait for the reception of the connection success message from the server.
+                    try:
+                        await asyncio.wait_for(self._messages_connection_queue.get(), 10)
+                        # Do nothing of the connection successful message.
+                        self._messages_connection_queue.task_done()
+                    except TimeoutError:
+                        _LOGGER.error("Error connecting to the server !")
+                        raise DIOChaconAPIError("No connection aknowledge message received from the server !")
 
-            # Wait for the reception of the connection success message from the server.
-            try:
-                await asyncio.wait_for(self._messages_connection_queue.get(), 10)
-                # Do nothing of the connection successful message.
-                self._messages_connection_queue.task_done()
-            except TimeoutError:
-                _LOGGER.error("Error connecting to the server !")
-                raise DIOChaconAPIError("No connection aknowledge message received from the server !")
-
-        return self._session
+                    # stores the intialized session once connection is finished
+                    # in order to avoid concurrent access before connection is OK.
+                    self._session = session
+                    _LOGGER.debug("End of session creation via _init_session()")
 
     def _message_received_callback(self, data: Any) -> None:
         """The callback called whenever a server side message is received.
         Args:
             data: the message which is a from json converted dict.
         """
-        _LOGGER.debug("Callback Websocket received data %s", data)
+        _LOGGER.debug("Websocket received data %s", data)
 
         if "name" in data and data["name"] == "connection" and data["action"] == "success":
             # Sends the connection message in the dedicated queue
@@ -89,7 +96,7 @@ class DIOChaconAPIClient:
                     if link['rt'] == "oic.r.movement.linear":
                         result["movement"] = link["movement"]
                     if link['rt'] == "oic.r.switch.binary":
-                        result["is_on"] = link["value"] == 1
+                        result["is_on"] = link["value"] == LightOnOffEnum.ON.value
                 self._callback_device_state(result)
                 return
             else:
@@ -142,7 +149,7 @@ class DIOChaconAPIClient:
         msg["id"] = req_id
 
         _LOGGER.debug(f"WS request to send = {msg}")
-        await self._get_session()
+        await self._init_session()
         await self._session.ws_send_message(msg)
 
         raw_results = await self._get_message_response_with_id(req_id)
@@ -233,7 +240,7 @@ class DIOChaconAPIClient:
                 if link['rt'] == "oic.r.movement.linear":
                     result["movement"] = link["movement"]
                 if link['rt'] == "oic.r.switch.binary":
-                    result["is_on"] = link["value"] == 1
+                    result["is_on"] = link["value"] == LightOnOffEnum.ON.value
             results[device_key] = result
         return results
 
@@ -246,6 +253,6 @@ class DIOChaconAPIClient:
         await self._send_ws_message("POST", f"/device/{shutter_id}/action/openlevel", parameters)
 
     async def switch_light(self, switch_id: str, set_on: bool):
-        val = 1 if set_on else 0
+        val = LightOnOffEnum.ON.value if set_on else LightOnOffEnum.OFF.value
         parameters = {'value': val}
         await self._send_ws_message("POST", f"/device/{switch_id}/action/switch", parameters)

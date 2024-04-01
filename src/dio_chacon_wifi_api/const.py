@@ -31,3 +31,8 @@ class ShutterMoveEnum(Enum):
     UP = "up"
     STOP = "stop"
     DOWN = "down"
+
+
+class LightOnOffEnum(Enum):
+    ON = 1
+    OFF = 0
