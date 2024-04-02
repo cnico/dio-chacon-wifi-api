@@ -12,8 +12,6 @@ from .session import DIOChaconClientSession
 
 _LOGGER = logging.getLogger(__name__)
 
-_init_lock = asyncio.Lock()
-
 
 class DIOChaconAPIClient:
     """Proxy to the DIO Chacon wifi API."""
@@ -33,16 +31,25 @@ class DIOChaconAPIClient:
         self._installation_id = installation_id
         self._callback_device_state = callback_device_state
         self._session: DIOChaconClientSession | None = None
+        # Unique message id for request / response correlation
         self._id = 0
+        # Queue to await connection response from server
         self._messages_connection_queue: asyncio.Queue = asyncio.Queue()
+        # Queue to await responses for queries
         self._messages_responses_queue: asyncio.Queue = asyncio.Queue()
+        # In case of server responses concurrency, uses this buffer to find correct message id response.
         self._messages_buffer: dict = dict()
+        # Lock to prevent initialisation of WS connection concurrently
+        self._init_lock = asyncio.Lock()
 
-    async def _init_session(self) -> None:
+    async def _get_or_init_session(self) -> None:
+        if self._session and self._session.is_disconnected():
+            _LOGGER.warning("You have been disconnected. Automatic reconnection...")
+            self._session = None
         if self._session is None:
-            async with _init_lock:
+            async with self._init_lock:
                 if self._session is None:
-                    _LOGGER.debug("Session creation via _init_session()")
+                    _LOGGER.debug("Session creation via init_session")
 
                     session = DIOChaconClientSession(
                         self._login_email, self._password, self._installation_id, self._message_received_callback
@@ -63,7 +70,7 @@ class DIOChaconAPIClient:
                     # stores the intialized session once connection is finished
                     # in order to avoid concurrent access before connection is OK.
                     self._session = session
-                    _LOGGER.debug("End of session creation via _init_session()")
+                    _LOGGER.debug("End of session creation via init_session")
 
     def _message_received_callback(self, data: Any) -> None:
         """The callback called whenever a server side message is received.
@@ -149,7 +156,7 @@ class DIOChaconAPIClient:
         msg["id"] = req_id
 
         _LOGGER.debug(f"WS request to send = {msg}")
-        await self._init_session()
+        await self._get_or_init_session()
         await self._session.ws_send_message(msg)
 
         raw_results = await self._get_message_response_with_id(req_id)

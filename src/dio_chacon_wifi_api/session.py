@@ -125,7 +125,6 @@ class DIOChaconClientSession:
 
                     if message.type == aiohttp.WSMsgType.TEXT:
                         msg = message.json()
-                        # _LOGGER.debug("Received message from WS server: %s", msg)
                         self._callback(msg)
 
         except aiohttp.ClientResponseError as error:
@@ -133,7 +132,7 @@ class DIOChaconClientSession:
             self._state = STATE_STOPPED
         except (aiohttp.ClientConnectionError, asyncio.TimeoutError) as error:
             if self._failed_attempts >= MAX_FAILED_ATTEMPTS:
-                _LOGGER.warning("Too many retries to reconnect to ws server")
+                _LOGGER.error("Too many retries to reconnect to server. Please restart globally.")
                 self._state = STATE_STOPPED
             elif self._state != STATE_STOPPED:
                 retry_delay = min(2 ** (self._failed_attempts - 1) * 30, 300)
@@ -160,3 +159,6 @@ class DIOChaconClientSession:
             msg: the message to be sent
         """
         await self._websocket.send_str(json.dumps(msg))
+
+    def is_disconnected(self) -> bool:
+        return self._state == STATE_STOPPED or self._websocket.closed
