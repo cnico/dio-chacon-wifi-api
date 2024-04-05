@@ -258,3 +258,8 @@ For groups definitions retrieval :
 
 For static content in the mobile app :
     {"method":"GET","path":"/static/all","parameters":{},"id":5}
+
+
+For device renaming from the mobile App, a server message is sent :
+
+    {'name': 'device', 'action': 'update', 'data': {'id': 'L4HActuator_....', 'provider': 'L4HActuator', 'name': 'Lumière Chemin', 'modelName': 'CWMSwd-2B', 'vendor': 'Chacon', 'hardwareVersion': '1.0', 'softwareVersion': '1.0.6', 'macAddress': '...', 'type': '.dio1.wifi.genericSwitch.switch.', 'roomName': '...', 'roomId': '...', 'image': None, 'isNew': False}}
