@@ -37,7 +37,7 @@ class DIOChaconClientSession:
     def __init__(self, login_email: str, password: str, installation_id: str, callback) -> None:
         """Initialize and authenticate.
 
-        Args:
+        Parameters:
             username: the dio chacon user (mainly the email to log in the app)
             password: the dio chacon user's password
             installation_id: an application id which is an arbitrary string to identify the installation.
@@ -155,7 +155,7 @@ class DIOChaconClientSession:
     async def ws_send_message(self, msg) -> None:
         """Sends a message in the websocket by converting it to json.
 
-        Args:
+        Parameters:
             msg: the message to be sent
         """
         await self._websocket.send_str(json.dumps(msg))

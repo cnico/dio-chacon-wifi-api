@@ -14,17 +14,22 @@ _LOGGER = logging.getLogger(__name__)
 
 
 class DIOChaconAPIClient:
-    """Proxy to the DIO Chacon wifi API."""
+    """Client to the DIO Chacon wifi API.
+    It is mainly a proxy to the chacon's cloud server.
+    It manages authentication, the protocol through the websocket connection and server side callback events.
+    """
 
     def __init__(
-        self, login_email: str, password: str, installation_id: str = "noid", callback_device_state=None
+        self, login_email: str, password: str, installation_id: str = "noid", callback_device_state: callable = None
     ) -> None:
-        """Initialize the API and authenticate so we can make requests.
+        """Initialize the client API. Actually do nothing but storing informations.
+        The effective authentication and connection are lazyly achieved.
 
-        Args:
-            email: string containing your email in DIO app
+        Parameters:
+            login_email: string containing your email in DIO app
             password: string containing your password in DIO app
             installation_id: a given unique id defining the client side installation
+            callback_device_state: the callback method that will be called for server side events
         """
         self._login_email = login_email
         self._password = password
@@ -74,7 +79,7 @@ class DIOChaconAPIClient:
 
     def _message_received_callback(self, data: Any) -> None:
         """The callback called whenever a server side message is received.
-        Args:
+        Parameters:
             data: the message which is a from json converted dict.
         """
         _LOGGER.debug("Websocket received data %s", data)
@@ -164,6 +169,10 @@ class DIOChaconAPIClient:
         return raw_results
 
     async def disconnect(self) -> None:
+        """Disconnects for the cloud server and properly closes the connection.
+        It must be called at the of API usage or before python program ending.
+
+        """
         if self._session:
             # Send a disconnect message to the server
             await self._send_ws_message("POST", "/session/logout", {})
@@ -172,7 +181,7 @@ class DIOChaconAPIClient:
             await self._session.ws_disconnect()
 
     async def get_user_id(self) -> str:
-        """Search for the user id
+        """Search for the user technical id based on its authentification elements.
 
         Returns:
             A string for the unique user id from the server.
@@ -185,7 +194,7 @@ class DIOChaconAPIClient:
     async def search_all_devices(self, device_type_to_search: DeviceTypeEnum = None, with_state: bool = False) -> dict:
         """Search all the known devices with their states : positions for shutters and on/off for lights
 
-        Args:
+        Parameters:
             device_type_to_search: the device type to search for. None means to return all type (SHUTTERS and LIGHTS)
             with_state: True to return the detailed states like shutter position and light on or off.
 
@@ -222,9 +231,9 @@ class DIOChaconAPIClient:
         return results
 
     async def get_status_details(self, ids: list) -> dict:
-        """Retrieves the status detailed of devices ids given
+        """Retrieves the status detailed of devices ids given.
 
-        Args:
+        Parameters:
             ids: the device ids to search details for.
 
         Returns:
@@ -252,14 +261,33 @@ class DIOChaconAPIClient:
         return results
 
     async def move_shutter_direction(self, shutter_id: str, direction: ShutterMoveEnum):
+        """Moves the given shutter in the given direction.
+
+        Parameters:
+            shutter_id: the device id defining the chosen shutter.
+            direction: up, down or stop movement.
+        """
+
         parameters = {'movement': direction.value.lower()}
         await self._send_ws_message("POST", f"/device/{shutter_id}/action/mvtlinear", parameters)
 
     async def move_shutter_percentage(self, shutter_id: str, openlevel: int):
+        """Moves the given shutter at a given position.
+
+        Parameters:
+            shutter_id: the device id defining the chosen shutter.
+            openlevel: the open level percentage between 0 and 100.
+        """
         parameters = {'openLevel': openlevel}
         await self._send_ws_message("POST", f"/device/{shutter_id}/action/openlevel", parameters)
 
     async def switch_light(self, switch_id: str, set_on: bool):
+        """Switches on or off the given switch.
+
+        Parameters:
+            switch_id: the device id defining the chosen switch.
+            set_on: on or off as desired state.
+        """
         val = LightOnOffEnum.ON.value if set_on else LightOnOffEnum.OFF.value
         parameters = {'value': val}
         await self._send_ws_message("POST", f"/device/{switch_id}/action/switch", parameters)

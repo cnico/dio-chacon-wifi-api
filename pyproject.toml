@@ -27,6 +27,10 @@ ruff = "^0.2.1"
 pre-commit = "^3.6.1"
 flake8 = "^7.0.0"
 debugpy = "^1.8.1"
+mkdocs = "^1.5.3"
+mkdocstrings = "^0.24.3"
+markdown-include = "^0.8.1"
+mkdocstrings-python = "^1.9.2"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
