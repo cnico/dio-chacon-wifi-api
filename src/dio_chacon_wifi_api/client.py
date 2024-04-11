@@ -2,9 +2,13 @@
 """Client for the DIO Chacon wifi API."""
 import asyncio
 import logging
+from asyncio import Lock
+from asyncio import Queue
 from typing import Any
 
 from .const import DeviceTypeEnum
+from .const import DIOCHACON_AUTH_URL
+from .const import DIOCHACON_WS_URL
 from .const import LightOnOffEnum
 from .const import ShutterMoveEnum
 from .exceptions import DIOChaconAPIError
@@ -31,21 +35,28 @@ class DIOChaconAPIClient:
             installation_id: a given unique id defining the client side installation
             callback_device_state: the callback method that will be called for server side events
         """
-        self._login_email = login_email
-        self._password = password
-        self._installation_id = installation_id
-        self._callback_device_state = callback_device_state
+        self._login_email: str = login_email
+        self._password: str = password
+        self._installation_id: str = installation_id
+        self._callback_device_state: callable = callback_device_state
         self._session: DIOChaconClientSession | None = None
         # Unique message id for request / response correlation
-        self._id = 0
+        self._id: int = 0
         # Queue to await connection response from server
-        self._messages_connection_queue: asyncio.Queue = asyncio.Queue()
+        self._messages_connection_queue: Queue = Queue()
         # Queue to await responses for queries
-        self._messages_responses_queue: asyncio.Queue = asyncio.Queue()
+        self._messages_responses_queue: Queue = Queue()
         # In case of server responses concurrency, uses this buffer to find correct message id response.
         self._messages_buffer: dict = dict()
         # Lock to prevent initialisation of WS connection concurrently
-        self._init_lock = asyncio.Lock()
+        self._init_lock: Lock = Lock()
+        self._auth_url: str = DIOCHACON_AUTH_URL
+        self._ws_url: str = DIOCHACON_WS_URL
+
+    def _set_server_urls(self, auth_url: str, ws_url: str) -> None:
+        # Simple method to easily mock the server url.
+        self._auth_url = auth_url
+        self._ws_url = ws_url
 
     async def _get_or_init_session(self) -> None:
         if self._session and self._session.is_disconnected():
@@ -59,6 +70,7 @@ class DIOChaconAPIClient:
                     session = DIOChaconClientSession(
                         self._login_email, self._password, self._installation_id, self._message_received_callback
                     )
+                    session._set_server_urls(self._auth_url, self._ws_url)
 
                     await session.login()
                     await session.ws_connect()
@@ -82,7 +94,6 @@ class DIOChaconAPIClient:
         Parameters:
             data: the message which is a from json converted dict.
         """
-        _LOGGER.debug("Websocket received data %s", data)
 
         if "name" in data and data["name"] == "connection" and data["action"] == "success":
             # Sends the connection message in the dedicated queue
@@ -178,7 +189,7 @@ class DIOChaconAPIClient:
             await self._send_ws_message("POST", "/session/logout", {})
 
             # Close the web socket
-            await self._session.ws_disconnect()
+            await self._session.disconnect()
 
     async def get_user_id(self) -> str:
         """Search for the user technical id based on its authentification elements.

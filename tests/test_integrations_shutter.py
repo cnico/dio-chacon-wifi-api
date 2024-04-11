@@ -36,6 +36,8 @@ if os.environ.get('PYDBG', None):
 async def test_integration_simple() -> None:
     """Connect then lists all the devices."""
 
+    assert USERNAME is not None, "Please set env var before running integration tests !"
+
     def log_callback(data: Any) -> None:
         _LOGGER.info("******** CALLBACK MESSAGE RECEIVED *******")
         _LOGGER.info(data)
