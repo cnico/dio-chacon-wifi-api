@@ -225,7 +225,7 @@ class DIOChaconAPIClient:
                 ids.append(id)
                 result["id"] = id
                 result["name"] = device["name"]
-                result["type"] = DeviceTypeEnum.from_dio_api(type)  # Converts type to our constant definition
+                result["type"] = DeviceTypeEnum.from_dio_api(type).value  # Converts type to our constant definition
                 result["model"] = device["modelName"] + "_" + device["softwareVersion"]
                 results[id] = result
 
@@ -271,7 +271,7 @@ class DIOChaconAPIClient:
             results[device_key] = result
         return results
 
-    async def move_shutter_direction(self, shutter_id: str, direction: ShutterMoveEnum):
+    async def move_shutter_direction(self, shutter_id: str, direction: ShutterMoveEnum) -> None:
         """Moves the given shutter in the given direction.
 
         Parameters:
@@ -282,7 +282,7 @@ class DIOChaconAPIClient:
         parameters = {'movement': direction.value.lower()}
         await self._send_ws_message("POST", f"/device/{shutter_id}/action/mvtlinear", parameters)
 
-    async def move_shutter_percentage(self, shutter_id: str, openlevel: int):
+    async def move_shutter_percentage(self, shutter_id: str, openlevel: int) -> None:
         """Moves the given shutter at a given position.
 
         Parameters:
@@ -292,7 +292,7 @@ class DIOChaconAPIClient:
         parameters = {'openLevel': openlevel}
         await self._send_ws_message("POST", f"/device/{shutter_id}/action/openlevel", parameters)
 
-    async def switch_light(self, switch_id: str, set_on: bool):
+    async def switch_light(self, switch_id: str, set_on: bool) -> None:
         """Switches on or off the given switch.
 
         Parameters:

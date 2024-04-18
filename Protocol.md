@@ -160,13 +160,17 @@ To know if a device is connected or disconnected from the wifi, in the 'rt'='oic
 
     {"method":"POST","path":"/device/L4HActuator_.../action/mvtlinear","parameters":{"movement":"down"},"id":8}
 
-The Response sends lots of data including the configuration and the current position of the shutter.
+The Response sends immediately an acknowledge response :
+
+    {"id":8,"status":200}
+
+Then the server sends one event containing some data including the configuration and the current position of the shutter.
 
     {
     "name": "deviceState",
     "action": "update",
     "data": {...
-    }
+        }
     }
 
 At the end of movment, another response is sent from the server that is similar to the previous answer but with a "stop" event.

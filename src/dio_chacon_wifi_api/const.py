@@ -14,14 +14,17 @@ class DeviceTypeEnum(Enum):
             {'label': ".dio1.wifi.shutter.mvt_linear.", 'code': "SHUTTER"},
             {'label': ".dio1.wifi.genericSwitch.switch.", 'code': "LIGHT"},
         ]
-        result: str = ''
         for d in dict_array:
             if d['label'] == label:
-                result = d['code']
-        return DeviceTypeEnum(result)
+                return DeviceTypeEnum(d['code'])
+        return None
 
     def equals(self, other_label: str) -> bool:
-        return DeviceTypeEnum.from_dio_api(other_label) == self
+        if DeviceTypeEnum.from_dio_api(other_label) == self:
+            return True
+        if other_label in [e.value for e in DeviceTypeEnum]:
+            return True
+        return False
 
     SHUTTER = "SHUTTER"
     LIGHT = "LIGHT"
