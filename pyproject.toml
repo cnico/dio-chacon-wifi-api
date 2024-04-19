@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "dio-chacon-wifi-api"
-version = "0.1.0"
+version = "1.0.0"
 description = "Python library for DIO Chacon wifi's protocol for shutters and switches"
 authors = ["cnico"]
 license = "GNU Lesser General Public License v3 or later (LGPLv3+)"
