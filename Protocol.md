@@ -1,5 +1,5 @@
 # Protocol for DIO devices
-Here is a description of the wifi protocol to be used through the chacon's cloud in order to connect and handle DIO devices (REV-SHUTTER or REV-LIGHT).
+Here is a description of the wifi protocol to be used through the chacon's cloud in order to connect and handle DIO devices (REV-SHUTTER, REV-LIGHT or Prise ON/OFF).
 
 # Connection :
 To connect to the cloud service, use this type of REST request :
@@ -79,7 +79,8 @@ The response will be of the following type (I replaced some content with dots) :
     ]
     }
 
-For a switch, type will be : .dio1.wifi.genericSwitch.switch.
+For a light switch, type will be : .dio1.wifi.genericSwitch.switch.
+For a plug switch, type will be : .dio1.wifi.plug.switch.
 
 
 # Devices position retrieval :
@@ -184,7 +185,7 @@ Action to set a given position, for exemple 75% opened :
 
 NOTE : For group actions or multiple shutter, simply send as many json request as shutters to act on.
 
-# Device light retrieval :
+# Device switch retrieval :
 
     {"method":"POST","path":"/device/states","parameters":{"devices":["L4HActuator_...", ... ]},"id":22}
 
@@ -237,9 +238,9 @@ Will return the status of every given device via such an answer :
     }
     }
 
-The oic.r.switch.binary gives the information if the light is on or off.
+The oic.r.switch.binary gives the information if the switch is on or off.
 
-# Switching a light on or off :
+# Switching a switch on or off :
 
     {"method":"POST","path":"/device/L4HActuator_.../action/switch","parameters":{"value":0},"id":12}
 
@@ -261,9 +262,9 @@ For groups definitions retrieval :
     {"method":"GET","path":"/group","parameters":{},"id":4}
 
 For static content in the mobile app :
-    {"method":"GET","path":"/static/all","parameters":{},"id":5}
 
+    {"method":"GET","path":"/static/all","parameters":{},"id":5}
 
 For device renaming from the mobile App, a server message is sent :
 
-    {'name': 'device', 'action': 'update', 'data': {'id': 'L4HActuator_....', 'provider': 'L4HActuator', 'name': 'Lumière Chemin', 'modelName': 'CWMSwd-2B', 'vendor': 'Chacon', 'hardwareVersion': '1.0', 'softwareVersion': '1.0.6', 'macAddress': '...', 'type': '.dio1.wifi.genericSwitch.switch.', 'roomName': '...', 'roomId': '...', 'image': None, 'isNew': False}}
+    {'name': 'device', 'action': 'update', 'data': {'id': 'L4HActuator_....', 'provider': 'L4HActuator', 'name': 'New name for light', 'modelName': 'CWMSwd-2B', 'vendor': 'Chacon', 'hardwareVersion': '1.0', 'softwareVersion': '1.0.6', 'macAddress': '...', 'type': '.dio1.wifi.genericSwitch.switch.', 'roomName': '...', 'roomId': '...', 'image': None, 'isNew': False}}

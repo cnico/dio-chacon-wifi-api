@@ -8,7 +8,7 @@ readme = "README.md"
 homepage = "https://github.com/cnico/dio-chacon-wifi-api"
 repository = "https://github.com/cnico/dio-chacon-wifi-api"
 documentation = "https://dio-chacon-wifi-api.readthedocs.io"
-keywords = ["dio", "chacon", "shutter", "api"]
+keywords = ["dio", "chacon", "shutter", "switch", "api"]
 classifiers = [
     "Operating System :: OS Independent",
     "Development Status :: 5 - Production/Stable",

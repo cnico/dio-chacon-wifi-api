@@ -9,8 +9,8 @@ from typing import Any
 from .const import DeviceTypeEnum
 from .const import DIOCHACON_AUTH_URL
 from .const import DIOCHACON_WS_URL
-from .const import LightOnOffEnum
 from .const import ShutterMoveEnum
+from .const import SwitchOnOffEnum
 from .exceptions import DIOChaconAPIError
 from .session import DIOChaconClientSession
 
@@ -119,7 +119,7 @@ class DIOChaconAPIClient:
                     if link['rt'] == "oic.r.movement.linear":
                         result["movement"] = link["movement"]
                     if link['rt'] == "oic.r.switch.binary":
-                        result["is_on"] = link["value"] == LightOnOffEnum.ON.value
+                        result["is_on"] = link["value"] == SwitchOnOffEnum.ON.value
                 self._callback_device_state(result)
                 return
             else:
@@ -202,15 +202,17 @@ class DIOChaconAPIClient:
 
         return raw_results["data"]["id"]
 
-    async def search_all_devices(self, device_type_to_search: DeviceTypeEnum = None, with_state: bool = False) -> dict:
-        """Search all the known devices with their states : positions for shutters and on/off for lights
+    async def search_all_devices(
+        self, device_type_to_search: list[DeviceTypeEnum] = None, with_state: bool = False
+    ) -> dict:
+        """Search all the known devices with their states : positions for shutters and on/off for switches
 
         Parameters:
-            device_type_to_search: the device type to search for. None means to return all type (SHUTTERS and LIGHTS)
-            with_state: True to return the detailed states like shutter position and light on or off.
+            device_type_to_search: the device type to search for. None means to return all type (SHUTTERS and SWITCHES)
+            with_state: True to return the detailed states like shutter position and switches on or off.
 
         Returns:
-            A list of tuples composed of id, name, type, openlevel and movement for shutter, is_on for light.
+            A list of tuples composed of id, name, type, openlevel and movement for shutter, is_on for switches.
         """
 
         raw_results = await self._send_ws_message("GET", "/device", {})
@@ -221,7 +223,7 @@ class DIOChaconAPIClient:
             result = {}
             id = device["id"]
             type = device["type"]
-            if not device_type_to_search or device_type_to_search.equals(type):
+            if not device_type_to_search or (DeviceTypeEnum.from_dio_api(type) in device_type_to_search):
                 ids.append(id)
                 result["id"] = id
                 result["name"] = device["name"]
@@ -248,7 +250,7 @@ class DIOChaconAPIClient:
             ids: the device ids to search details for.
 
         Returns:
-            A list of tuples composed of id, connected ; openlevel and movement for shutter, is_on for light.
+            A list of tuples composed of id, connected ; openlevel and movement for shutter, is_on for switch.
         """
 
         parameters = {'devices': ids}
@@ -267,7 +269,7 @@ class DIOChaconAPIClient:
                 if link['rt'] == "oic.r.movement.linear":
                     result["movement"] = link["movement"]
                 if link['rt'] == "oic.r.switch.binary":
-                    result["is_on"] = link["value"] == LightOnOffEnum.ON.value
+                    result["is_on"] = link["value"] == SwitchOnOffEnum.ON.value
             results[device_key] = result
         return results
 
@@ -292,13 +294,13 @@ class DIOChaconAPIClient:
         parameters = {'openLevel': openlevel}
         await self._send_ws_message("POST", f"/device/{shutter_id}/action/openlevel", parameters)
 
-    async def switch_light(self, switch_id: str, set_on: bool) -> None:
+    async def switch_switch(self, switch_id: str, set_on: bool) -> None:
         """Switches on or off the given switch.
 
         Parameters:
             switch_id: the device id defining the chosen switch.
             set_on: on or off as desired state.
         """
-        val = LightOnOffEnum.ON.value if set_on else LightOnOffEnum.OFF.value
+        val = SwitchOnOffEnum.ON.value if set_on else SwitchOnOffEnum.OFF.value
         parameters = {'value': val}
         await self._send_ws_message("POST", f"/device/{switch_id}/action/switch", parameters)

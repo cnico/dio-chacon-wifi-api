@@ -9,20 +9,20 @@
 [![Github Activity](https://img.shields.io/github/commit-activity/y/cnico/dio-chacon-wifi-api.svg)](https://github.com/cnico/dio-chacon-wifi-api/commits/main)
 
 DIO Chacon are devices mainly distributed in the European market.
-Chacon provide various device to control lights, shutters, camera, etc.
+Chacon provide various device to control switches, shutters, camera, lights, etc.
 The website contains it all : [https://chacon.com/](https://chacon.com/)
 
 The cool thing about their device is that they have RF (433Mhz, used by remote control in house) and Wifi protocols (used by the mobile App).
 
 The wifi protocol is cloud based with their server and quite reactive through permanent connections (via websockets).
 
-This project is a simple implementation, based on the Wifi protocol, of a python client to give the possibility to connect and acts on the devices. It currently supports lights and shutters. It can lists all registered devices (via the mobile app), get their status (on/off ; open level) and act on them (switch on/off ; move up/down/stop cover or move a given percentage of openess).
+This project is a simple implementation, based on the Wifi protocol, of a python client to give the possibility to connect and acts on the devices. It currently supports switches (plugs or wall box for lights) and shutters. It can lists all registered devices (via the mobile app), get their status (on/off ; open level) and act on them (switch on/off ; move up/down/stop cover or move a given percentage of openess).
 
 It is used in a [HomeAssistant](<https://home-assistant.io/>) integration but is also usable in other automation platforms (jeedom, etc).
 
 ## Using this library
 
-To implement a client that interact with Chacon devices, simply have look at [test_integrations_light.py](https://github.com/cnico/dio-chacon-wifi-api/blob/main//tests/test_integrations_light.py) or [test_integrations_shutter.py](https://github.com/cnico/dio-chacon-wifi-api/blob/main//tests/test_integrations_shutter.py) that provide effective implementations.
+To implement a client that interact with Chacon devices, simply have look at [test_integrations_switch.py](https://github.com/cnico/dio-chacon-wifi-api/blob/main//tests/test_integrations_switch.py) or [test_integrations_shutter.py](https://github.com/cnico/dio-chacon-wifi-api/blob/main//tests/test_integrations_shutter.py) that provide effective implementations.
 
 The library is published in [pypi.org](https://pypi.org/) and so can be very easily used in any python project (with python > 3.10).
 
@@ -49,4 +49,4 @@ The websocket permanent connection is established lazily when it is necessary (f
 The protocol is based two types of interaction :
 
 - Requests / Responses : this is handled via json message sent in the websocket with an id (the library automatically manages this id) and a response received from the server that has the same id has the request.
-- Server side sent messages : these push messages (for example a light manually swithed on/off with the button or other event) are sent back to the registerer callback method when you initialize the client.
+- Server side sent messages : these push messages (for example a switch manually switched on/off with the button or other event) are sent back to the registerer callback method when you initialize the client.

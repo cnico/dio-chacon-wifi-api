@@ -12,7 +12,8 @@ class DeviceTypeEnum(Enum):
     def from_dio_api(label: str):
         dict_array = [
             {'label': ".dio1.wifi.shutter.mvt_linear.", 'code': "SHUTTER"},
-            {'label': ".dio1.wifi.genericSwitch.switch.", 'code': "LIGHT"},
+            {'label': ".dio1.wifi.genericSwitch.switch.", 'code': "SWITCH_LIGHT"},
+            {'label': ".dio1.wifi.plug.switch.", 'code': "SWITCH_PLUG"},
         ]
         for d in dict_array:
             if d['label'] == label:
@@ -27,7 +28,8 @@ class DeviceTypeEnum(Enum):
         return False
 
     SHUTTER = "SHUTTER"
-    LIGHT = "LIGHT"
+    SWITCH_LIGHT = "SWITCH_LIGHT"
+    SWITCH_PLUG = "SWITCH_PLUG"
 
 
 class ShutterMoveEnum(Enum):
@@ -36,6 +38,6 @@ class ShutterMoveEnum(Enum):
     DOWN = "down"
 
 
-class LightOnOffEnum(Enum):
+class SwitchOnOffEnum(Enum):
     ON = 1
     OFF = 0

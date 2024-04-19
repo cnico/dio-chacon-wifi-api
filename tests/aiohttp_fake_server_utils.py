@@ -78,7 +78,7 @@ async def websocket_messages_handler(ws: aiohttp.web_ws.WebSocketResponse, recor
                 response["data"][0]["type"] = ".dio1.wifi.shutter.mvt_linear."
                 response["data"][0]["modelName"] = "CERSwd-3B"
                 response["data"][0]["softwareVersion"] = "1.0.6"
-                # Add one light
+                # Add one switch
                 response["data"].append({})
                 response["data"][1]["id"] = "L4HActuator_idmock2"
                 response["data"][1]["name"] = "Shutter mock 2"

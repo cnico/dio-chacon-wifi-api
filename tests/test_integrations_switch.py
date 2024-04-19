@@ -13,7 +13,7 @@ from dio_chacon_wifi_api.const import DeviceTypeEnum
 
 USERNAME = os.environ.get('DIO_USERNAME')
 PASSWORD = os.environ.get('DIO_PASSWORD')
-MY_LIGHT_ID = os.environ.get('DIO_SHUTTER_ID_TEST_LIGHT')
+MY_SWITCH_ID = os.environ.get('DIO_SHUTTER_ID_TEST_SWITCH')
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -48,31 +48,31 @@ async def test_integration_simple() -> None:
     user_id = await client.get_user_id()
     _LOGGER.info(f"User Id retrieved : {user_id}")
 
-    list_devices = await client.search_all_devices(device_type_to_search=DeviceTypeEnum.LIGHT, with_state=True)
+    list_devices = await client.search_all_devices(device_type_to_search=[DeviceTypeEnum.SWITCH_LIGHT], with_state=True)
     _LOGGER.info(f"Devices found : {list_devices}")
 
-    my_device = list_devices[MY_LIGHT_ID]
-    _LOGGER.info(f"My device found {MY_LIGHT_ID} : {my_device}")
+    my_device = list_devices[MY_SWITCH_ID]
+    _LOGGER.info(f"My device found {MY_SWITCH_ID} : {my_device}")
     assert my_device['name'] == 'Lumiere Test'
-    assert my_device['type'] == DeviceTypeEnum.LIGHT
+    assert my_device['type'] == DeviceTypeEnum.SWITCH_LIGHT.value
 
     # get shutter position
-    list_details = await client.get_status_details([MY_LIGHT_ID])
+    list_details = await client.get_status_details([MY_SWITCH_ID])
     _LOGGER.info(f"Details found : {list_details}")
 
     _LOGGER.info("---------- Switch On ---------")
-    await client.switch_light(MY_LIGHT_ID, True)
+    await client.switch_switch(MY_SWITCH_ID, True)
 
     await asyncio.sleep(5)
 
-    list_details = await client.get_status_details([MY_LIGHT_ID])
+    list_details = await client.get_status_details([MY_SWITCH_ID])
     _LOGGER.info(f"Details after swith on: {list_details}")
 
-    await client.switch_light(MY_LIGHT_ID, False)
+    await client.switch_switch(MY_SWITCH_ID, False)
 
     await asyncio.sleep(5)
 
-    list_details = await client.get_status_details([MY_LIGHT_ID])
+    list_details = await client.get_status_details([MY_SWITCH_ID])
     _LOGGER.info(f"Details after swith off: {list_details}")
 
     _LOGGER.info("End of integration tests : disconnecting...")

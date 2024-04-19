@@ -49,13 +49,13 @@ async def test_integration_simple() -> None:
     user_id = await client.get_user_id()
     _LOGGER.info(f"User Id retrieved : {user_id}")
 
-    list_devices = await client.search_all_devices(device_type_to_search=DeviceTypeEnum.SHUTTER, with_state=False)
+    list_devices = await client.search_all_devices(device_type_to_search=[DeviceTypeEnum.SHUTTER], with_state=False)
     _LOGGER.info(f"Devices found : {list_devices}")
 
     my_device = list_devices[MY_SHUTTER_ID]
     _LOGGER.info(f"My device found {MY_SHUTTER_ID} : {my_device}")
     assert my_device['name'] == 'Test'
-    assert my_device['type'] == DeviceTypeEnum.SHUTTER
+    assert my_device['type'] == DeviceTypeEnum.SHUTTER.value
 
     # get shutter position
     list_pos = await client.get_status_details([MY_SHUTTER_ID])

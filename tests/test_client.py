@@ -85,7 +85,7 @@ async def test_client(aiohttp_server) -> None:
     assert effective_response["L4HActuator_idmock1"]["movement"] == "stop"
     assert effective_response["L4HActuator_idmock2"]["id"] == "L4HActuator_idmock2"
     assert effective_response["L4HActuator_idmock2"]["name"] == "Shutter mock 2"
-    assert effective_response["L4HActuator_idmock2"]["type"] == "LIGHT"
+    assert effective_response["L4HActuator_idmock2"]["type"] == "SWITCH_LIGHT"
     assert effective_response["L4HActuator_idmock2"]["model"] == "CERNwd-3B_1.0.4"
     assert effective_response["L4HActuator_idmock2"]["connected"]  # == True
     assert not effective_response["L4HActuator_idmock2"]["is_on"]  # == False
@@ -114,8 +114,8 @@ async def test_client(aiohttp_server) -> None:
     recording_queue.task_done()
     # Returns is also done via a callback
 
-    # Test switch_light
-    await client.switch_light(switch_id="L4HActuator_idmock2", set_on=True)
+    # Test switch_switch
+    await client.switch_switch(switch_id="L4HActuator_idmock2", set_on=True)
     effective_request = await asyncio.wait_for(recording_queue.get(), 2)
     _LOGGER.debug("Request : %s", effective_request)
     assert effective_request["protocol"] == "WS"
