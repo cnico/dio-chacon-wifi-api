@@ -268,3 +268,7 @@ For static content in the mobile app :
 For device renaming from the mobile App, a server message is sent :
 
     {'name': 'device', 'action': 'update', 'data': {'id': 'L4HActuator_....', 'provider': 'L4HActuator', 'name': 'New name for light', 'modelName': 'CWMSwd-2B', 'vendor': 'Chacon', 'hardwareVersion': '1.0', 'softwareVersion': '1.0.6', 'macAddress': '...', 'type': '.dio1.wifi.genericSwitch.switch.', 'roomName': '...', 'roomId': '...', 'image': None, 'isNew': False}}
+
+For plug setting's to set the blue status light on or off :
+
+    {"method":"POST","path":"/device/L4HActuator_..../action/quietmode","parameters":{"value":1},"id":9}

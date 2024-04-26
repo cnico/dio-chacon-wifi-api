@@ -1,5 +1,5 @@
 # coding: utf-8
-"""Tests client.py. DIOChaconAPIClient class."""
+"""Tests consts."""
 from dio_chacon_wifi_api.const import DeviceTypeEnum
 
 

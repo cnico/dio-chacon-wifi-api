@@ -9,6 +9,8 @@ import logging
 
 import aiohttp
 
+from .exceptions import DIOChaconInvalidAuthError
+
 MAX_FAILED_ATTEMPTS = 5
 
 STATE_CONNECTED = "connected"
@@ -88,6 +90,11 @@ class DIOChaconClientSession:
         self._aiohttp_session = aiohttp.ClientSession(trace_configs=[trace_config])
         async with self._aiohttp_session.post(url=self._auth_url, data=payload_data, headers=headers_token) as resp:
             resp_json = await resp.json()
+            if resp_json["status"] == 400:
+                err_msg = resp_json["data"]
+                _LOGGER.debug("Invalid auth response received : %s", err_msg)
+                await self._aiohttp_session.close()
+                raise DIOChaconInvalidAuthError(err_msg)
             self._sessionToken = str(resp_json["data"]["sessionToken"])
             _LOGGER.debug("SessionToken of authentication : " + self._sessionToken)
 
