@@ -33,7 +33,8 @@ async def test_client(aiohttp_server) -> None:
 
     _LOGGER.debug("Launching test client...")
 
-    client = DIOChaconAPIClient(USERNAME, PASSWORD, INSTALLATION_ID, log_callback)
+    client = DIOChaconAPIClient(USERNAME, PASSWORD, INSTALLATION_ID)
+    client.set_callback_device_state(log_callback)
     client._set_server_urls(f"http://localhost:{MOCK_PORT}/api/session/login", f"ws://localhost:{MOCK_PORT}/ws")
 
     # Test get_user_id

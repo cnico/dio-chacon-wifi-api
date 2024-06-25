@@ -53,6 +53,9 @@ class DIOChaconAPIClient:
         self._auth_url: str = DIOCHACON_AUTH_URL
         self._ws_url: str = DIOCHACON_WS_URL
 
+    def set_callback_device_state(self, callback_device_state: callable) -> None:
+        self._callback_device_state = callback_device_state
+
     def _set_server_urls(self, auth_url: str, ws_url: str) -> None:
         # Simple method to easily mock the server url.
         self._auth_url = auth_url
