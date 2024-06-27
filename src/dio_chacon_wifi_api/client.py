@@ -39,6 +39,7 @@ class DIOChaconAPIClient:
         self._password: str = password
         self._installation_id: str = installation_id
         self._callback_device_state: callable = callback_device_state
+        self._callback_device_state_by_device: dict[str, callable] = {}
         self._session: DIOChaconClientSession | None = None
         # Unique message id for request / response correlation
         self._id: int = 0
@@ -54,7 +55,12 @@ class DIOChaconAPIClient:
         self._ws_url: str = DIOCHACON_WS_URL
 
     def set_callback_device_state(self, callback_device_state: callable) -> None:
+        """Register after the constructor the global callback method that will be called for server side events"""
         self._callback_device_state = callback_device_state
+
+    def set_callback_device_state_by_device(self, target_id, callback_device_state: callable) -> None:
+        """Register the per device callback method that will be called for server side events"""
+        self._callback_device_state_by_device[target_id] = callback_device_state
 
     def _set_server_urls(self, auth_url: str, ws_url: str) -> None:
         # Simple method to easily mock the server url.
@@ -110,25 +116,35 @@ class DIOChaconAPIClient:
 
         if "name" in data and data["name"] == "deviceState" and data["action"] == "update":
             # Sends the device state pushed from the server to the calling client
-            if self._callback_device_state:
-                # Sends only pertinent data :
-                result = {}
-                device_data = data["data"]
-                result["id"] = device_data["di"]
-                result["connected"] = device_data["rc"] == 1
-                for link in device_data["links"]:
-                    if link['rt'] == "oic.r.openlevel":
-                        result["openlevel"] = link["openLevel"]
-                    if link['rt'] == "oic.r.movement.linear":
-                        result["movement"] = link["movement"]
-                    if link['rt'] == "oic.r.switch.binary":
-                        result["is_on"] = link["value"] == SwitchOnOffEnum.ON.value
-                self._callback_device_state(result)
-                return
-            else:
-                _LOGGER.warning("No callback for device state notification ! You shoud implement one.")
+            # Sends only pertinent data :
+            result = {}
+            device_data = data["data"]
+            result["id"] = device_data["di"]
+            result["connected"] = device_data["rc"] == 1
+            for link in device_data["links"]:
+                if link['rt'] == "oic.r.openlevel":
+                    result["openlevel"] = link["openLevel"]
+                if link['rt'] == "oic.r.movement.linear":
+                    result["movement"] = link["movement"]
+                if link['rt'] == "oic.r.switch.binary":
+                    result["is_on"] = link["value"] == SwitchOnOffEnum.ON.value
 
-        _LOGGER.warning("Unknown message received and dropped : %s", data)
+            sent = False
+
+            if self._callback_device_state:
+                _LOGGER.debug("Sending global callback event.")
+                self._callback_device_state(result)
+                sent = True
+
+            if result["id"] in self._callback_device_state_by_device:
+                _LOGGER.debug("Sending callback event for device %s", result["id"])
+                self._callback_device_state_by_device[result["id"]](result)
+                sent = True
+
+            if sent:
+                return
+
+        _LOGGER.warning("Unknown message received and dropped / no callback registered for this message : %s", data)
 
     def _get_next_id(self) -> int:
         self._id = self._id + 1
