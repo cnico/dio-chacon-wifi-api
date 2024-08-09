@@ -90,6 +90,7 @@ async def test_client(aiohttp_server) -> None:
     assert effective_response["L4HActuator_idmock2"]["model"] == "CERNwd-3B_1.0.4"
     assert effective_response["L4HActuator_idmock2"]["connected"]  # == True
     assert not effective_response["L4HActuator_idmock2"]["is_on"]  # == False
+    # Device 3 is unknown so not in the response since it is filtered by the client.
 
     # Test move_shutter_direction
     await client.move_shutter_direction(shutter_id="L4HActuator_idmock1", direction=ShutterMoveEnum.DOWN)

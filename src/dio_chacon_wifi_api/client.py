@@ -242,17 +242,23 @@ class DIOChaconAPIClient:
             result = {}
             id = device["id"]
             type = device["type"]
-            if not device_type_to_search or (DeviceTypeEnum.from_dio_api(type) in device_type_to_search):
+            device_type = DeviceTypeEnum.from_dio_api(type)
+            if device_type is not DeviceTypeEnum.UNKNOWN and (
+                not device_type_to_search or (device_type in device_type_to_search)
+            ):
                 ids.append(id)
                 result["id"] = id
                 result["name"] = device["name"]
-                result["type"] = DeviceTypeEnum.from_dio_api(type).value  # Converts type to our constant definition
+                result["type"] = device_type.value  # Converts type to our constant definition
                 result["model"] = device["modelName"] + "_" + device["softwareVersion"]
                 results[id] = result
 
         if with_state:
             details = await self.get_status_details(ids)
             for id in ids:
+                if id not in details:
+                    continue
+
                 results[id]["connected"] = details[id]["connected"]
                 if "openlevel" in details[id]:
                     results[id]["openlevel"] = details[id]["openlevel"]
@@ -278,6 +284,8 @@ class DIOChaconAPIClient:
         results = dict()
         for device_key in raw_results['data']:
             device_data = raw_results['data'][device_key]
+            if device_data is None:
+                continue
 
             result = {}
             result["id"] = device_key

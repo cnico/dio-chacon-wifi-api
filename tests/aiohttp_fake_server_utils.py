@@ -85,6 +85,13 @@ async def websocket_messages_handler(ws: aiohttp.web_ws.WebSocketResponse, recor
                 response["data"][1]["type"] = ".dio1.wifi.genericSwitch.switch."
                 response["data"][1]["modelName"] = "CERNwd-3B"
                 response["data"][1]["softwareVersion"] = "1.0.4"
+                # Add one unknown device
+                response["data"].append({})
+                response["data"][2]["id"] = "L4HActuator_idmock3"
+                response["data"][2]["name"] = "Shutter mock 3 unknown"
+                response["data"][2]["type"] = ".dio1.camera.unknown"
+                response["data"][2]["modelName"] = "CERNwd-3B"
+                response["data"][2]["softwareVersion"] = "X.0.X"
 
                 _LOGGER.debug("MOCK Server WS : response /device to send. %s", response)
                 await ws.send_str(json.dumps(response))

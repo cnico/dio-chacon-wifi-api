@@ -11,14 +11,14 @@ class DeviceTypeEnum(Enum):
 
     def from_dio_api(label: str):
         dict_array = [
-            {'label': ".dio1.wifi.shutter.mvt_linear.", 'code': "SHUTTER"},
-            {'label': ".dio1.wifi.genericSwitch.switch.", 'code': "SWITCH_LIGHT"},
-            {'label': ".dio1.wifi.plug.switch.", 'code': "SWITCH_PLUG"},
+            {'label': ".wifi.shutter.", 'code': "SHUTTER"},
+            {'label': ".wifi.genericSwitch.", 'code': "SWITCH_LIGHT"},
+            {'label': ".wifi.plug.", 'code': "SWITCH_PLUG"},
         ]
         for d in dict_array:
-            if d['label'] == label:
+            if d['label'] in label:
                 return DeviceTypeEnum(d['code'])
-        return None
+        return DeviceTypeEnum.UNKNOWN
 
     def equals(self, other_label: str) -> bool:
         if DeviceTypeEnum.from_dio_api(other_label) == self:
@@ -30,6 +30,7 @@ class DeviceTypeEnum(Enum):
     SHUTTER = "SHUTTER"
     SWITCH_LIGHT = "SWITCH_LIGHT"
     SWITCH_PLUG = "SWITCH_PLUG"
+    UNKNOWN = "UNKNOWN"
 
 
 class ShutterMoveEnum(Enum):
