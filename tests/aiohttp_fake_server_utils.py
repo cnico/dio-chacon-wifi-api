@@ -31,8 +31,12 @@ async def endpoint(
     # record request for future inspection
     await recording_queue.put(for_assertions)
     if str(request.rel_url).startswith("/api/session/login"):
-        _LOGGER.debug("MOCK server. Response with fake session token")
-        return web.json_response(body='{"status":200,"data":{"sessionToken":"r:myfakesessionToken"}}', status=200)
+        if "PASS_INVALID_AUTH" in (await request.text()):
+            _LOGGER.debug("MOCK server. Response with fake invalid authentication")
+            return web.json_response(body='{"status":400,"data":"Invalid username/password."}', status=200)
+        else:
+            _LOGGER.debug("MOCK server. Response with fake session token")
+            return web.json_response(body='{"status":200,"data":{"sessionToken":"r:myfakesessionToken"}}', status=200)
 
     _LOGGER.debug("MOCK server. Response None")
     return None

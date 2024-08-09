@@ -9,6 +9,7 @@ from aiohttp_fake_server_utils import MOCK_PORT
 from aiohttp_fake_server_utils import run_fake_http_server
 from dio_chacon_wifi_api.client import DIOChaconAPIClient
 from dio_chacon_wifi_api.const import ShutterMoveEnum
+from dio_chacon_wifi_api.exceptions import DIOChaconInvalidAuthError
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -16,12 +17,36 @@ USERNAME = 'toto@toto.com'
 PASSWORD = 'DUMMY_PASS'
 INSTALLATION_ID = "NOID"
 
+INVALID_PASSWORD = 'PASS_INVALID_AUTH'
+
 
 def log_callback(data: Any) -> None:
     _LOGGER.info("******** CALLBACK MESSAGE RECEIVED *******")
     _LOGGER.info(data)
     assert data["id"]
     _LOGGER.info("******** CALLBACK MESSAGE DONE *******")
+
+
+@pytest.mark.asyncio
+async def test_client_invalid_auth(aiohttp_server) -> None:
+    """Test invalid auth exception for client giving bad credential."""
+
+    recording_queue: asyncio.Queue = asyncio.Queue()
+    await run_fake_http_server(aiohttp_server, recording_queue)
+
+    _LOGGER.debug("Launching test client...")
+
+    with pytest.raises(DIOChaconInvalidAuthError) as excinfo:
+        client = DIOChaconAPIClient(USERNAME, INVALID_PASSWORD, INSTALLATION_ID)
+        client.set_callback_device_state(log_callback)
+        client._set_server_urls(f"http://localhost:{MOCK_PORT}/api/session/login", f"ws://localhost:{MOCK_PORT}/ws")
+        await client.get_user_id()
+
+    assert str(excinfo.value) == "Invalid username/password."
+
+    _LOGGER.debug("Invalid auth, disconnecting...")
+
+    await client.disconnect()
 
 
 @pytest.mark.asyncio
