@@ -7,11 +7,11 @@ from asyncio import Queue
 from typing import Any
 
 from .const import DeviceTypeEnum
-from .const import DIOCHACON_AUTH_URL
 from .const import DIOCHACON_WS_URL
 from .const import ShutterMoveEnum
 from .const import SwitchOnOffEnum
 from .exceptions import DIOChaconAPIError
+from .exceptions import DIOChaconInvalidAuthError
 from .session import DIOChaconClientSession
 
 _LOGGER = logging.getLogger(__name__)
@@ -24,7 +24,11 @@ class DIOChaconAPIClient:
     """
 
     def __init__(
-        self, login_email: str, password: str, installation_id: str = "noid", callback_device_state: callable = None
+        self,
+        login_email: str,
+        password: str,
+        service_name: str = "python_generic",
+        callback_device_state: callable = None,
     ) -> None:
         """Initialize the client API. Actually do nothing but storing informations.
         The effective authentication and connection are lazyly achieved.
@@ -32,12 +36,12 @@ class DIOChaconAPIClient:
         Parameters:
             login_email: string containing your email in DIO app
             password: string containing your password in DIO app
-            installation_id: a given unique id defining the client side installation
+            service_name: arbitrary string identifying this client
             callback_device_state: the callback method that will be called for server side events
         """
         self._login_email: str = login_email
         self._password: str = password
-        self._installation_id: str = installation_id
+        self._service_name: str = service_name
         self._callback_device_state: callable = callback_device_state
         self._callback_device_state_by_device: dict[str, callable] = {}
         self._session: DIOChaconClientSession | None = None
@@ -51,7 +55,6 @@ class DIOChaconAPIClient:
         self._messages_buffer: dict = dict()
         # Lock to prevent initialisation of WS connection concurrently
         self._init_lock: Lock = Lock()
-        self._auth_url: str = DIOCHACON_AUTH_URL
         self._ws_url: str = DIOCHACON_WS_URL
 
     def set_callback_device_state(self, callback_device_state: callable) -> None:
@@ -62,9 +65,8 @@ class DIOChaconAPIClient:
         """Register the per device callback method that will be called for server side events"""
         self._callback_device_state_by_device[target_id] = callback_device_state
 
-    def _set_server_urls(self, auth_url: str, ws_url: str) -> None:
+    def _set_server_urls(self, ws_url: str) -> None:
         # Simple method to easily mock the server url.
-        self._auth_url = auth_url
         self._ws_url = ws_url
 
     async def _get_or_init_session(self) -> None:
@@ -77,25 +79,32 @@ class DIOChaconAPIClient:
                     _LOGGER.debug("Session creation via init_session")
 
                     session = DIOChaconClientSession(
-                        self._login_email, self._password, self._installation_id, self._message_received_callback
+                        self._login_email, self._password, self._service_name, self._message_received_callback
                     )
-                    session._set_server_urls(self._auth_url, self._ws_url)
+                    # Stores session to be able to call disconnect whatever happens next (ok or ko auth)
+                    self._session = session
+                    session._set_server_urls(self._ws_url)
 
-                    await session.login()
                     await session.ws_connect()
 
                     # Wait for the reception of the connection success message from the server.
                     try:
-                        await asyncio.wait_for(self._messages_connection_queue.get(), 10)
-                        # Do nothing of the connection successful message.
+                        connection_message = await asyncio.wait_for(self._messages_connection_queue.get(), 10)
                         self._messages_connection_queue.task_done()
+
+                        if (
+                            "name" in connection_message
+                            and connection_message["name"] == "connection"
+                            and connection_message["action"] == "invalid"
+                        ):
+                            _LOGGER.debug("Invalid auth response received : %s", connection_message)
+                            raise DIOChaconInvalidAuthError('Invalid username/password.')
+                        # Do nothing of the connection successful message.
+
                     except TimeoutError:
                         _LOGGER.error("Error connecting to the server !")
                         raise DIOChaconAPIError("No connection aknowledge message received from the server !")
 
-                    # stores the intialized session once connection is finished
-                    # in order to avoid concurrent access before connection is OK.
-                    self._session = session
                     _LOGGER.debug("End of session creation via init_session")
 
     def _message_received_callback(self, data: Any) -> None:
@@ -104,8 +113,8 @@ class DIOChaconAPIClient:
             data: the message which is a from json converted dict.
         """
 
-        if "name" in data and data["name"] == "connection" and data["action"] == "success":
-            # Sends the connection message in the dedicated queue
+        if "name" in data and data["name"] == "connection":
+            # Sends the connection message (success or invalid) in the dedicated queue
             self._messages_connection_queue.put_nowait(data)
             return
 
@@ -201,12 +210,8 @@ class DIOChaconAPIClient:
     async def disconnect(self) -> None:
         """Disconnects for the cloud server and properly closes the connection.
         It must be called at the of API usage or before python program ending.
-
         """
         if self._session:
-            # Send a disconnect message to the server
-            await self._send_ws_message("POST", "/session/logout", {})
-
             # Close the web socket
             await self._session.disconnect()
 

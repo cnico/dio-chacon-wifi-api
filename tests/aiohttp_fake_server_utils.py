@@ -15,6 +15,8 @@ _LOGGER = logging.getLogger(__name__)
 
 MOCK_PORT = 38080
 
+INVALID_PASSWORD = "PASS_INVALID_AUTH"
+
 
 async def endpoint(
     request: web.Request,
@@ -31,7 +33,7 @@ async def endpoint(
     # record request for future inspection
     await recording_queue.put(for_assertions)
     if str(request.rel_url).startswith("/api/session/login"):
-        if "PASS_INVALID_AUTH" in (await request.text()):
+        if INVALID_PASSWORD in (await request.text()):
             _LOGGER.debug("MOCK server. Response with fake invalid authentication")
             return web.json_response(body='{"status":400,"data":"Invalid username/password."}', status=200)
         else:
@@ -232,7 +234,12 @@ async def websocket_handler(request: web.Request, recording_queue: Queue):
     ws = web.WebSocketResponse()
     await ws.prepare(request)
     _LOGGER.debug('MOCK Server WS : Websocket connection ready')
-    await ws.send_str('{"name":"connection","action":"success","data":""}')
+    if request.query.get("password") == INVALID_PASSWORD:
+        _LOGGER.debug('MOCK Server WS : Sending invalid auth for connection failure')
+        await ws.send_str('{"name":"connection","action":"invalid","data":""}')
+    else:
+        _LOGGER.debug('MOCK Server WS : Sending connection success')
+        await ws.send_str('{"name":"connection","action":"success","data":""}')
     await asyncio.create_task(websocket_messages_handler(ws, recording_queue))
 
     return ws

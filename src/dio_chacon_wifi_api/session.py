@@ -6,10 +6,10 @@ Largely inspired by https://github.com/jjlawren/python-plexwebsocket/blob/master
 import asyncio
 import json
 import logging
+import urllib
 
 import aiohttp
 
-from .exceptions import DIOChaconInvalidAuthError
 
 MAX_FAILED_ATTEMPTS = 5
 
@@ -30,44 +30,25 @@ class DIOChaconClientSession:
 
     _state: str = None
     _failed_attempts: int = 0
-    _sessionToken: str = None
     _aiohttp_session: aiohttp.ClientSession | None = None
     _websocket: aiohttp.ClientWebSocketResponse | None = None
     _listen_task: asyncio.Task | None = None
 
-    def __init__(self, login_email: str, password: str, installation_id: str, callback: callable) -> None:
+    def __init__(self, login_email: str, password: str, service_name: str, callback: callable) -> None:
         """Initialize and authenticate.
 
         Parameters:
             username: the dio chacon user (mainly the email to log in the app)
             password: the dio chacon user's password
-            installation_id: an application id which is an arbitrary string to identify the installation.
+            service_name: arbitrary string identifying the client
             callback (Runnable):
                 Called when interesting events occur. Provides arguments:
                    data (str): websocket payload contents deserialized from json
         """
         self._login_email = login_email
         self._password = password
-        self._installation_id = installation_id
+        self._service_name = service_name
         self._callback = callback
-
-    def _set_server_urls(self, auth_url: str, ws_url: str) -> None:
-        # Simple method to easily mock the server url by overriding default values.
-        self._auth_url = auth_url
-        self._ws_url = ws_url
-
-    async def login(self) -> None:
-        data = {}
-        data["email"] = self._login_email
-        data["password"] = self._password
-        data["installationId"] = self._installation_id
-        payload_data = json.dumps(data)
-
-        # Authenticate with user and pass and store bearer token
-        headers_token = {
-            "Content-Type": "application/json",
-            "Cache-Control": "no-cache",
-        }
 
         async def on_request_start(session, trace_config_ctx, params):
             _LOGGER.debug(f"aiohttp request start : {params}")
@@ -86,17 +67,11 @@ class DIOChaconClientSession:
         trace_config.on_request_end.append(on_request_end)
         trace_config.on_request_chunk_sent.append(on_request_chunk_sent)
         trace_config.on_response_chunk_received.append(on_response_chunk_received)
-
         self._aiohttp_session = aiohttp.ClientSession(trace_configs=[trace_config])
-        async with self._aiohttp_session.post(url=self._auth_url, data=payload_data, headers=headers_token) as resp:
-            resp_json = await resp.json()
-            if resp_json["status"] == 400:
-                err_msg = resp_json["data"]
-                _LOGGER.debug("Invalid auth response received : %s", err_msg)
-                await self._aiohttp_session.close()
-                raise DIOChaconInvalidAuthError(err_msg)
-            self._sessionToken = str(resp_json["data"]["sessionToken"])
-            _LOGGER.debug("SessionToken of authentication : " + self._sessionToken)
+
+    def _set_server_urls(self, ws_url: str) -> None:
+        # Simple method to easily mock the server url by overriding default values.
+        self._ws_url = ws_url
 
     async def ws_connect(self) -> None:
         """Make a connection to the server via websocket protocol."""
@@ -113,7 +88,17 @@ class DIOChaconClientSession:
             await self._running()
 
     async def _running(self) -> None:
-        url = self._ws_url + "?sessionToken=" + self._sessionToken
+        url = (
+            self._ws_url
+            + "?"
+            + urllib.parse.urlencode(
+                {
+                    'email': self._login_email,
+                    'password': self._password,
+                    'serviceName': self._service_name,
+                }
+            )
+        )
 
         self._state = STATE_STARTING
 
@@ -158,6 +143,7 @@ class DIOChaconClientSession:
                 self._state = STATE_STOPPED
 
     async def disconnect(self) -> None:
+        _LOGGER.debug("Disconnection of the current session")
         self._state = STATE_STOPPED
         if self._websocket:
             await self._websocket.close()
@@ -165,6 +151,7 @@ class DIOChaconClientSession:
             await self._aiohttp_session.close()
         # Let the _listen infinite loop terminate correctly with STATE_STOPPED signal.
         await asyncio.sleep(0.5)
+        _LOGGER.debug("Disconnection done")
 
     async def ws_send_message(self, msg) -> None:
         """Sends a message in the websocket by converting it to json.

@@ -15,7 +15,7 @@ _LOGGER = logging.getLogger(__name__)
 
 USERNAME = 'toto@toto.com'
 PASSWORD = 'DUMMY_PASS'
-INSTALLATION_ID = "NOID"
+SERVICE_NAME = "test_client"
 
 INVALID_PASSWORD = 'PASS_INVALID_AUTH'
 
@@ -37,14 +37,14 @@ async def test_client_invalid_auth(aiohttp_server) -> None:
     _LOGGER.debug("Launching test client...")
 
     with pytest.raises(DIOChaconInvalidAuthError) as excinfo:
-        client = DIOChaconAPIClient(USERNAME, INVALID_PASSWORD, INSTALLATION_ID)
+        client = DIOChaconAPIClient(USERNAME, INVALID_PASSWORD, SERVICE_NAME)
         client.set_callback_device_state(log_callback)
-        client._set_server_urls(f"http://localhost:{MOCK_PORT}/api/session/login", f"ws://localhost:{MOCK_PORT}/ws")
+        client._set_server_urls(f"ws://localhost:{MOCK_PORT}/ws")
         await client.get_user_id()
 
     assert str(excinfo.value) == "Invalid username/password."
 
-    _LOGGER.debug("Invalid auth, disconnecting...")
+    _LOGGER.debug("Invalid auth test OK. Disconnecting...")
 
     await client.disconnect()
 
@@ -58,20 +58,13 @@ async def test_client(aiohttp_server) -> None:
 
     _LOGGER.debug("Launching test client...")
 
-    client = DIOChaconAPIClient(USERNAME, PASSWORD, INSTALLATION_ID)
+    client = DIOChaconAPIClient(USERNAME, PASSWORD, SERVICE_NAME)
     client.set_callback_device_state(log_callback)
-    client._set_server_urls(f"http://localhost:{MOCK_PORT}/api/session/login", f"ws://localhost:{MOCK_PORT}/ws")
+    client._set_server_urls(f"ws://localhost:{MOCK_PORT}/ws")
 
     # Test get_user_id
     effective_response = await client.get_user_id()
     _LOGGER.debug("Assertion queue size = %s", recording_queue.qsize())
-    effective_request = await asyncio.wait_for(recording_queue.get(), 2)
-    _LOGGER.debug("Request : %s .Response : %s", effective_request, effective_response)
-    assert effective_request["protocol"] == "HTTP"
-    assert effective_request["method"] == "POST"
-    assert effective_request["rel_url"] == "/api/session/login"
-    assert effective_request["body"] == '{"email": "toto@toto.com", "password": "DUMMY_PASS", "installationId": "NOID"}'
-    recording_queue.task_done()
     effective_request = await asyncio.wait_for(recording_queue.get(), 2)
     assert effective_request["protocol"] == "WS"
     assert effective_request["method"] == "GET"
@@ -158,10 +151,3 @@ async def test_client(aiohttp_server) -> None:
     await asyncio.sleep(0.500)
 
     await client.disconnect()
-    effective_request = await asyncio.wait_for(recording_queue.get(), 2)
-    _LOGGER.debug("Intermediairay WS Request : %s", effective_request)
-    assert effective_request["protocol"] == "WS"
-    assert effective_request["method"] == "POST"
-    assert effective_request["path"] == "/session/logout"
-    assert effective_request["parameters"] == {}
-    assert effective_request["id"] == 7

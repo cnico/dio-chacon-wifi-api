@@ -2,7 +2,21 @@
 Here is a description of the wifi protocol to be used through the chacon's cloud in order to connect and handle DIO devices (REV-SHUTTER, REV-LIGHT or Prise ON/OFF).
 
 # Connection :
-To connect to the cloud service, use this type of REST request :
+
+There is 2 way to connect to the cloud service:
+
+## WS login
+
+Directly connect in websocket:
+l4hfront-prod.chacon.cloud/ws?email=USER&password=PASSWORD&serviceName=SERVICE_NAME
+
+USER is to be replaced by your user's mail.
+PASSWORD is to be replaced by your password.
+SERVICE_NAME An arbitrary string identifying this client
+
+## HTTP login
+
+First use this type of REST request :
 Server Url : https://l4hfront-prod.chacon.cloud/api/session/login
 Content :
 
@@ -20,9 +34,15 @@ Then switch to WebSockets since devices actions and states are handled via a web
 Url for websockets switching :
 l4hfront-prod.chacon.cloud/ws?sessionToken=r:9deb0bfeb982314029166810e940f3ab
 
+## Connection response
+
 At connection, it responds with a content like :
 
     {"name":"connection","action":"success","data":""}
+
+In case there an issue with the sessionToken or with the provided credentials, it responds with:
+
+    {"name":"connection","action":"invalid","data":""}
 
 # User info retrieval :
 Send this content to the web socket :
@@ -249,6 +269,8 @@ Possible values are 0 or 1 to switch on or off.
 # Disconnecting :
 
     {"method":"POST","path":"/session/logout","parameters":{},"id":13}
+
+> Only required if you are connected using a sessionToken
 
 # Other API verbs not implemented by this lib :
 Via the Web socket, send either one of this request :
