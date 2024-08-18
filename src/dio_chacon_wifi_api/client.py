@@ -199,11 +199,16 @@ class DIOChaconAPIClient:
         msg["parameters"] = parameters
         msg["id"] = req_id
 
-        _LOGGER.debug(f"WS request to send = {msg}")
+        _LOGGER.debug("WS request to send = %s", msg)
         await self._get_or_init_session()
         await self._session.ws_send_message(msg)
 
         raw_results = await self._get_message_response_with_id(req_id)
+
+        _LOGGER.debug("WS response with result : %s", raw_results)
+
+        if raw_results["status"] != 200:
+            raise DIOChaconAPIError(f"Error during API call : {raw_results}")
 
         return raw_results
 
@@ -306,7 +311,7 @@ class DIOChaconAPIClient:
             results[device_key] = result
 
             # Send the update via the callback by device.
-            if device_key in self._callback_device_state_by_device:
+            if notifyCallback and device_key in self._callback_device_state_by_device:
                 _LOGGER.debug("Sending callback status details for device %s", device_key)
                 self._callback_device_state_by_device[device_key](result)
 
