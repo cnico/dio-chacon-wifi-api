@@ -273,11 +273,12 @@ class DIOChaconAPIClient:
 
         return results
 
-    async def get_status_details(self, ids: list) -> dict:
+    async def get_status_details(self, ids: list, notifyCallback: bool = False) -> dict:
         """Retrieves the status detailed of devices ids given.
 
         Parameters:
             ids: the device ids to search details for.
+            notifyCallback: True to notify the callback function par device.
 
         Returns:
             A list of tuples composed of id, connected ; openlevel and movement for shutter, is_on for switch.
@@ -303,6 +304,12 @@ class DIOChaconAPIClient:
                 if link['rt'] == "oic.r.switch.binary":
                     result["is_on"] = link["value"] == SwitchOnOffEnum.ON.value
             results[device_key] = result
+
+            # Send the update via the callback by device.
+            if device_key in self._callback_device_state_by_device:
+                _LOGGER.debug("Sending callback status details for device %s", device_key)
+                self._callback_device_state_by_device[device_key](result)
+
         return results
 
     async def move_shutter_direction(self, shutter_id: str, direction: ShutterMoveEnum) -> None:
