@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Client for the DIO Chacon wifi API."""
+
 import asyncio
 import logging
 from asyncio import Lock
@@ -98,7 +99,7 @@ class DIOChaconAPIClient:
                             and connection_message["action"] == "invalid"
                         ):
                             _LOGGER.debug("Invalid auth response received : %s", connection_message)
-                            raise DIOChaconInvalidAuthError('Invalid username/password.')
+                            raise DIOChaconInvalidAuthError("Invalid username/password.")
                         # Do nothing of the connection successful message.
 
                     except TimeoutError:
@@ -131,11 +132,11 @@ class DIOChaconAPIClient:
             result["id"] = device_data["di"]
             result["connected"] = device_data["rc"] == 1
             for link in device_data["links"]:
-                if link['rt'] == "oic.r.openlevel":
+                if link["rt"] == "oic.r.openlevel":
                     result["openlevel"] = link["openLevel"]
-                if link['rt'] == "oic.r.movement.linear":
+                if link["rt"] == "oic.r.movement.linear":
                     result["movement"] = link["movement"]
-                if link['rt'] == "oic.r.switch.binary":
+                if link["rt"] == "oic.r.switch.binary":
                     result["is_on"] = link["value"] == SwitchOnOffEnum.ON.value
 
             sent = False
@@ -169,7 +170,6 @@ class DIOChaconAPIClient:
             self._messages_responses_queue.task_done()
 
     async def _get_message_response_with_id(self, message_id: int) -> Any:
-
         await self._consume_message_queue_and_cache_it()
         cached = self._messages_buffer.get(message_id)
         # Try another after a small sleep
@@ -264,7 +264,7 @@ class DIOChaconAPIClient:
                 results[id] = result
 
         if with_state:
-            details = await self.get_status_details(ids)
+            details = await self.get_status_details(ids, device_infos=results)
             for id in ids:
                 if id not in details:
                     continue
@@ -278,36 +278,57 @@ class DIOChaconAPIClient:
 
         return results
 
-    async def get_status_details(self, ids: list, notifyCallback: bool = False) -> dict:
+    async def get_status_details(self, ids: list, notifyCallback: bool = False, device_infos: dict = None) -> dict:
         """Retrieves the status detailed of devices ids given.
 
         Parameters:
             ids: the device ids to search details for.
             notifyCallback: True to notify the callback function par device.
+            device_infos: the devices infos (name and model) for requested ids. Used only to produce a log.
 
         Returns:
             A list of tuples composed of id, connected ; openlevel and movement for shutter, is_on for switch.
         """
 
-        parameters = {'devices': ids}
+        parameters = {"devices": ids}
         raw_results = await self._send_ws_message("POST", "/device/states", parameters)
 
         results = dict()
-        for device_key in raw_results['data']:
-            device_data = raw_results['data'][device_key]
-            if device_data is None:
-                continue
-
+        for device_key in raw_results["data"]:
+            device_data = raw_results["data"][device_key]
             result = {}
             result["id"] = device_key
-            result["connected"] = device_data["rc"] == 1
-            for link in device_data["links"]:
-                if link['rt'] == "oic.r.openlevel":
-                    result["openlevel"] = link["openLevel"]
-                if link['rt'] == "oic.r.movement.linear":
-                    result["movement"] = link["movement"]
-                if link['rt'] == "oic.r.switch.binary":
-                    result["is_on"] = link["value"] == SwitchOnOffEnum.ON.value
+
+            if device_data is None:
+                # The server sends no data on the device but it exists (e.g with a very old firmware),
+                # so we consider it as disconnected as the DIO App.
+                name = device_infos[device_key]["name"] if device_infos else "Unknown"
+                device_type = device_infos[device_key]["type"] if device_infos else "Unknown"
+                model = device_infos[device_key]["model"] if device_infos else "Unknown"
+                _LOGGER.warn(
+                    "The device '%s' ('%s', '%s', '%s') is not fully recognized. "
+                    "Probably because of a too old firmware.",
+                    name,
+                    model,
+                    device_type,
+                    device_key,
+                )
+
+                result["connected"] = False
+                result["openlevel"] = 0
+                result["movement"] = ShutterMoveEnum.STOP.value
+                result["is_on"] = SwitchOnOffEnum.ON.value
+            else:
+                # Nominal case
+                result["connected"] = device_data["rc"] == 1
+                for link in device_data["links"]:
+                    if link["rt"] == "oic.r.openlevel":
+                        result["openlevel"] = link["openLevel"]
+                    if link["rt"] == "oic.r.movement.linear":
+                        result["movement"] = link["movement"]
+                    if link["rt"] == "oic.r.switch.binary":
+                        result["is_on"] = link["value"] == SwitchOnOffEnum.ON.value
+
             results[device_key] = result
 
             # Send the update via the callback by device.
@@ -325,7 +346,7 @@ class DIOChaconAPIClient:
             direction: up, down or stop movement.
         """
 
-        parameters = {'movement': direction.value.lower()}
+        parameters = {"movement": direction.value.lower()}
         await self._send_ws_message("POST", f"/device/{shutter_id}/action/mvtlinear", parameters)
 
     async def move_shutter_percentage(self, shutter_id: str, openlevel: int) -> None:
@@ -335,7 +356,7 @@ class DIOChaconAPIClient:
             shutter_id: the device id defining the chosen shutter.
             openlevel: the open level percentage between 0 and 100.
         """
-        parameters = {'openLevel': openlevel}
+        parameters = {"openLevel": openlevel}
         await self._send_ws_message("POST", f"/device/{shutter_id}/action/openlevel", parameters)
 
     async def switch_switch(self, switch_id: str, set_on: bool) -> None:
@@ -346,5 +367,5 @@ class DIOChaconAPIClient:
             set_on: on or off as desired state.
         """
         val = SwitchOnOffEnum.ON.value if set_on else SwitchOnOffEnum.OFF.value
-        parameters = {'value': val}
+        parameters = {"value": val}
         await self._send_ws_message("POST", f"/device/{switch_id}/action/switch", parameters)
