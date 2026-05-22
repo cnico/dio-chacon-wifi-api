@@ -20,6 +20,14 @@ STATE_STOPPED = "stopped"
 
 _LOGGER = logging.getLogger(__name__)
 
+_SENSITIVE_QUERY_KEYS = ("email", "password", "sessionToken")
+
+
+def _redact_url(url) -> str:
+    """Returns the URL as a string with sensitive query parameters masked."""
+    redactions = {key: "***" for key in _SENSITIVE_QUERY_KEYS if key in url.query}
+    return str(url.update_query(redactions))
+
 
 class DIOChaconClientSession:
     """HTTP session manager for DIO Chacon API.
@@ -51,16 +59,16 @@ class DIOChaconClientSession:
         self._callback = callback
 
         async def on_request_start(session, trace_config_ctx, params):
-            _LOGGER.debug(f"aiohttp request start : {params}")
+            _LOGGER.debug("aiohttp request start : %s %s", params.method, _redact_url(params.url))
 
         async def on_request_chunk_sent(session, trace_config_ctx, params):
-            _LOGGER.debug(f"aiohttp request chunk sent : {params}")
+            _LOGGER.debug("aiohttp request chunk sent : %s %s", params.method, _redact_url(params.url))
 
         async def on_response_chunk_received(session, trace_config_ctx, params):
-            _LOGGER.debug(f"aiohttp response chunk received : {params}")
+            _LOGGER.debug("aiohttp response chunk received : %s %s", params.method, _redact_url(params.url))
 
         async def on_request_end(session, trace_config_ctx, params):
-            _LOGGER.debug(f"aiohttp request end : {params}")
+            _LOGGER.debug("aiohttp request end : %s %s", params.method, _redact_url(params.url))
 
         trace_config = aiohttp.TraceConfig()
         trace_config.on_request_start.append(on_request_start)
@@ -125,7 +133,7 @@ class DIOChaconClientSession:
                         self._callback(msg)
 
         except aiohttp.ClientResponseError as error:
-            _LOGGER.error("Unexpected response received from server : %s", error)
+            _LOGGER.error("Unexpected response received from server : %s %s", error.status, error.message)
             self._state = STATE_STOPPED
         except (aiohttp.ClientConnectionError, asyncio.TimeoutError) as error:
             if self._failed_attempts >= MAX_FAILED_ATTEMPTS:
