@@ -18,6 +18,13 @@ from .session import DIOChaconClientSession
 _LOGGER = logging.getLogger(__name__)
 
 
+def _validated_image_url(url: Any) -> str | None:
+    """Returns the image URL only when it is a safe https URL, else None."""
+    if isinstance(url, str) and url.startswith("https://"):
+        return url
+    return None
+
+
 class DIOChaconAPIClient:
     """Client to the DIO Chacon wifi API.
     It is mainly a proxy to the chacon's cloud server.
@@ -45,6 +52,7 @@ class DIOChaconAPIClient:
         self._service_name: str = service_name
         self._callback_device_state: callable = callback_device_state
         self._callback_device_state_by_device: dict[str, callable] = {}
+        self._device_types: dict[str, str] = {}
         self._session: DIOChaconClientSession | None = None
         # Unique message id for request / response correlation
         self._id: int = 0
@@ -108,6 +116,23 @@ class DIOChaconAPIClient:
 
                     _LOGGER.debug("End of session creation via init_session")
 
+    @staticmethod
+    def _extract_links_state(links: list) -> dict:
+        """Maps the known device links coming from the server into flat state keys."""
+        state = {}
+        for link in links:
+            if link["rt"] == "oic.r.openlevel":
+                state["openlevel"] = link["openLevel"]
+            if link["rt"] == "oic.r.movement.linear":
+                state["movement"] = link["movement"]
+            if link["rt"] == "oic.r.switch.binary":
+                state["is_on"] = link["value"] == SwitchOnOffEnum.ON.value
+            if link["rt"] == "gw.r.lastEvent":
+                state["last_event_type"] = link["type"]
+                state["last_event_timestamp"] = link["ts"]
+                state["last_event_image"] = _validated_image_url(link.get("data", {}).get("image"))
+        return state
+
     def _message_received_callback(self, data: Any) -> None:
         """The callback called whenever a server side message is received.
         Parameters:
@@ -130,14 +155,9 @@ class DIOChaconAPIClient:
             result = {}
             device_data = data["data"]
             result["id"] = device_data["di"]
+            result["type"] = self._device_types.get(result["id"])
             result["connected"] = device_data["rc"] == 1
-            for link in device_data["links"]:
-                if link["rt"] == "oic.r.openlevel":
-                    result["openlevel"] = link["openLevel"]
-                if link["rt"] == "oic.r.movement.linear":
-                    result["movement"] = link["movement"]
-                if link["rt"] == "oic.r.switch.binary":
-                    result["is_on"] = link["value"] == SwitchOnOffEnum.ON.value
+            result.update(self._extract_links_state(device_data["links"]))
 
             sent = False
 
@@ -262,19 +282,13 @@ class DIOChaconAPIClient:
                 result["type"] = device_type.value  # Converts type to our constant definition
                 result["model"] = device["modelName"] + "_" + device["softwareVersion"]
                 results[id] = result
+                self._device_types[id] = device_type.value
 
         if with_state:
             details = await self.get_status_details(ids, device_infos=results)
             for id in ids:
-                if id not in details:
-                    continue
-
-                results[id]["connected"] = details[id]["connected"]
-                if "openlevel" in details[id]:
-                    results[id]["openlevel"] = details[id]["openlevel"]
-                    results[id]["movement"] = details[id]["movement"]
-                if "is_on" in details[id]:
-                    results[id]["is_on"] = details[id]["is_on"]
+                if id in details:
+                    results[id].update(details[id])
 
         return results
 
@@ -315,19 +329,15 @@ class DIOChaconAPIClient:
                 )
 
                 result["connected"] = False
-                result["openlevel"] = 0
-                result["movement"] = ShutterMoveEnum.STOP.value
-                result["is_on"] = SwitchOnOffEnum.ON.value
+                if device_type in ("Unknown", DeviceTypeEnum.SHUTTER.value):
+                    result["openlevel"] = 0
+                    result["movement"] = ShutterMoveEnum.STOP.value
+                if device_type in ("Unknown", DeviceTypeEnum.SWITCH_LIGHT.value, DeviceTypeEnum.SWITCH_PLUG.value):
+                    result["is_on"] = SwitchOnOffEnum.ON.value
             else:
                 # Nominal case
                 result["connected"] = device_data["rc"] == 1
-                for link in device_data["links"]:
-                    if link["rt"] == "oic.r.openlevel":
-                        result["openlevel"] = link["openLevel"]
-                    if link["rt"] == "oic.r.movement.linear":
-                        result["movement"] = link["movement"]
-                    if link["rt"] == "oic.r.switch.binary":
-                        result["is_on"] = link["value"] == SwitchOnOffEnum.ON.value
+                result.update(self._extract_links_state(device_data["links"]))
 
             results[device_key] = result
 

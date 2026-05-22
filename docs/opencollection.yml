@@ -2,7 +2,7 @@ opencollection: "1.0.0"
 
 info:
   name: DIO Chacon WiFi API
-  summary: Connect and control DIO devices (shutters and switches).
+  summary: Connect and control DIO devices (shutters, switches, doorbell).
   version: "1.0.0"
 
 config:
@@ -88,7 +88,9 @@ items:
           message:
             type: json
             data: '{"method":"GET","path":"/device","parameters":{},"id":1}'
-        docs: Lists all the devices of the account.
+        docs: |-
+          Lists all the devices. The `type` field identifies each device, e.g.
+          `.wifi.doorBell.camera.videostream.` for the doorbell.
 
       - info:
           name: Get device states
@@ -99,7 +101,10 @@ items:
           message:
             type: json
             data: '{"method":"POST","path":"/device/states","parameters":{"devices":["L4HActuator_..."]},"id":22}'
-        docs: Retrieves the state of the given devices.
+        docs: |-
+          Retrieves the state of the given devices. For the doorbell, the
+          `gw.r.lastEvent` link carries the last event type ("ring"), its timestamp
+          and a snapshot image URL.
 
       - info:
           name: Shutter action

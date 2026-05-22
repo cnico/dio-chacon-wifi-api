@@ -266,6 +266,53 @@ The oic.r.switch.binary gives the information if the switch is on or off.
 
 Possible values are 0 or 1 to switch on or off.
 
+# Doorbell device :
+
+A doorbell is provided by Tuya and its device `type` is `.wifi.doorBell.camera.videostream.`.
+
+Its status is retrieved with the same `/device/states` request and the answer looks like :
+
+    {
+    "id": 1,
+    "status": 200,
+    "data": {
+        "Tuya_...": {
+            "rt": "oic.d.videoDoorbell",
+            "provider": "Tuya",
+            "rc": 1,
+            "di": "Tuya_...",
+            "links": [
+                {
+                    "rt": "gw.r.camera.sdcard",
+                    "href": "sdcard",
+                    "total": "0G",
+                    "free": "0G",
+                    "status": "noCard"
+                },
+                {
+                    "rt": "gw.r.camera.streamQuality",
+                    "href": "streamQuality",
+                    "isHD": true,
+                    "isReadOnly": true
+                },
+                {
+                    "rt": "gw.r.lastEvent",
+                    "href": "lastEvent",
+                    "type": "ring",
+                    "ts": "2026-05-22T08:20:08.667Z",
+                    "data": {
+                        "reason": null,
+                        "image": "https://.../1779438008590.jpeg?..."
+                    }
+                }
+            ]
+        }
+    }
+    }
+
+The `gw.r.lastEvent` link describes the last event of the doorbell : its `type` ("ring" when someone rings), its timestamp `ts` and an `image` URL of the captured snapshot.
+The same `deviceState` / `update` event as for other devices is pushed by the server when someone rings, with a refreshed `gw.r.lastEvent` link.
+
 # Disconnecting :
 
     {"method":"POST","path":"/session/logout","parameters":{},"id":13}

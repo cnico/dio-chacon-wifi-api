@@ -98,6 +98,13 @@ async def websocket_messages_handler(ws: aiohttp.web_ws.WebSocketResponse, recor
                 response["data"][2]["type"] = ".dio1.camera.unknown"
                 response["data"][2]["modelName"] = "CERNwd-3B"
                 response["data"][2]["softwareVersion"] = "X.0.X"
+                # Add one doorbell
+                response["data"].append({})
+                response["data"][3]["id"] = "Tuya_idmock4"
+                response["data"][3]["name"] = "Doorbell mock 4"
+                response["data"][3]["type"] = ".wifi.doorBell.camera.videostream."
+                response["data"][3]["modelName"] = "DIOVDP-B03"
+                response["data"][3]["softwareVersion"] = "Wifi: 1.1.2, MCU: 1.1.2"
 
                 _LOGGER.debug("MOCK Server WS : response /device to send. %s", response)
                 await ws.send_str(json.dumps(response))
@@ -122,6 +129,17 @@ async def websocket_messages_handler(ws: aiohttp.web_ws.WebSocketResponse, recor
                 response["data"]["L4HActuator_idmock2"]["links"].append({})
                 response["data"]["L4HActuator_idmock2"]["links"][0]["rt"] = "oic.r.switch.binary"
                 response["data"]["L4HActuator_idmock2"]["links"][0]["value"] = 0
+                response["data"]["Tuya_idmock4"] = {}
+                response["data"]["Tuya_idmock4"]["rc"] = 1
+                response["data"]["Tuya_idmock4"]["links"] = list()
+                response["data"]["Tuya_idmock4"]["links"].append({})
+                response["data"]["Tuya_idmock4"]["links"][0]["rt"] = "gw.r.lastEvent"
+                response["data"]["Tuya_idmock4"]["links"][0]["type"] = "ring"
+                response["data"]["Tuya_idmock4"]["links"][0]["ts"] = "2026-05-22T08:20:08.667Z"
+                response["data"]["Tuya_idmock4"]["links"][0]["data"] = {
+                    "reason": None,
+                    "image": "https://mock.example.com/ring.jpeg",
+                }
 
                 _LOGGER.debug("MOCK Server WS : response /device/states to send. %s", response)
                 await ws.send_str(json.dumps(response))
