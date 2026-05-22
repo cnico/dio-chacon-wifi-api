@@ -1,0 +1,142 @@
+opencollection: "1.0.0"
+
+info:
+  name: DIO Chacon WiFi API
+  summary: Connect and control DIO devices (shutters and switches).
+  version: "1.0.0"
+
+config:
+  environments:
+    - name: Production
+      variables:
+        - name: baseUrl
+          value: https://l4hfront-prod.chacon.cloud
+        - name: wsUrl
+          value: wss://l4hfront-prod.chacon.cloud/ws
+        - name: email
+          value: ""
+        - name: sessionToken
+          value: ""
+        - name: password
+          secret: true
+
+bundled: true
+
+items:
+  - info:
+      name: REST
+      type: folder
+      seq: 1
+    items:
+      - info:
+          name: Login
+          type: http
+          seq: 1
+        http:
+          method: POST
+          url: "{{baseUrl}}/api/session/login"
+          headers:
+            - name: Content-Type
+              value: application/json
+          body:
+            type: json
+            data: |-
+              {
+                "email": "{{email}}",
+                "password": "{{password}}",
+                "installationId": "top"
+              }
+        docs: |-
+          HTTP login. The response contains a session token used to open the
+          WebSocket connection. Copy the returned `sessionToken` into the
+          environment variable `sessionToken`.
+
+  - info:
+      name: WebSocket
+      type: folder
+      seq: 2
+    items:
+      - info:
+          name: Connection
+          type: websocket
+          seq: 1
+        websocket:
+          url: "{{wsUrl}}?sessionToken={{sessionToken}}"
+        docs: |-
+          Opens the WebSocket connection. Authenticate with a session token from
+          the REST Login, or directly with credentials:
+          `{{wsUrl}}?email={{email}}&password={{password}}&serviceName=opencollection`.
+          On success the server sends `{"name":"connection","action":"success"}`.
+
+      - info:
+          name: Get user
+          type: websocket
+          seq: 2
+        websocket:
+          url: "{{wsUrl}}?sessionToken={{sessionToken}}"
+          message:
+            type: json
+            data: '{"method":"GET","path":"/user","parameters":{},"id":1}'
+        docs: Retrieves the current user info.
+
+      - info:
+          name: Get devices
+          type: websocket
+          seq: 3
+        websocket:
+          url: "{{wsUrl}}?sessionToken={{sessionToken}}"
+          message:
+            type: json
+            data: '{"method":"GET","path":"/device","parameters":{},"id":1}'
+        docs: Lists all the devices of the account.
+
+      - info:
+          name: Get device states
+          type: websocket
+          seq: 4
+        websocket:
+          url: "{{wsUrl}}?sessionToken={{sessionToken}}"
+          message:
+            type: json
+            data: '{"method":"POST","path":"/device/states","parameters":{"devices":["L4HActuator_..."]},"id":22}'
+        docs: Retrieves the state of the given devices.
+
+      - info:
+          name: Shutter action
+          type: websocket
+          seq: 5
+        websocket:
+          url: "{{wsUrl}}?sessionToken={{sessionToken}}"
+          message:
+            - title: Move up / down / stop
+              selected: true
+              message:
+                type: json
+                data: '{"method":"POST","path":"/device/L4HActuator_.../action/mvtlinear","parameters":{"movement":"down"},"id":8}'
+            - title: Set position (0 to 100)
+              message:
+                type: json
+                data: '{"method":"POST","path":"/device/L4HActuator_.../action/openlevel","parameters":{"openLevel":75},"id":24}'
+        docs: Controls a shutter. `movement` accepts "up", "down" or "stop".
+
+      - info:
+          name: Switch action
+          type: websocket
+          seq: 6
+        websocket:
+          url: "{{wsUrl}}?sessionToken={{sessionToken}}"
+          message:
+            type: json
+            data: '{"method":"POST","path":"/device/L4HActuator_.../action/switch","parameters":{"value":0},"id":12}'
+        docs: Switches a light or a plug on or off. `value` accepts 0 (off) or 1 (on).
+
+      - info:
+          name: Logout
+          type: websocket
+          seq: 7
+        websocket:
+          url: "{{wsUrl}}?sessionToken={{sessionToken}}"
+          message:
+            type: json
+            data: '{"method":"POST","path":"/session/logout","parameters":{},"id":13}'
+        docs: Closes the session. Only required when connected with a session token.

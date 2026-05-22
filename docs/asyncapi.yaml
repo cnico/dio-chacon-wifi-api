@@ -1,0 +1,500 @@
+asyncapi: 3.0.0
+
+info:
+  title: DIO Chacon WiFi API
+  version: "1.0.0"
+  description: |
+    WebSocket protocol of Chacon's cloud service to connect and control DIO devices:
+    shutters and light/plug switches.
+
+    The client opens a single WebSocket connection (after a REST login or directly with
+    credentials). Every exchange is a JSON envelope:
+
+    - Request sent by the client: `{"method": "...", "path": "...", "parameters": {}, "id": N}`.
+      The `id` is incremented per request and echoed in the matching response.
+    - Response sent by the server: `{"id": N, "status": 200, "data": ...}`.
+    - The server also pushes unsolicited `deviceState` / `update` events when a
+      device state changes.
+
+servers:
+  production:
+    host: l4hfront-prod.chacon.cloud
+    pathname: /ws
+    protocol: wss
+    description: |
+      Production WebSocket endpoint. Authenticate either with a session token obtained
+      from the REST login (`/ws?sessionToken=r:...`) or directly with credentials
+      (`/ws?email=...&password=...&serviceName=...`).
+
+channels:
+  ws:
+    address: /ws
+    description: The single WebSocket connection carrying every request, response and event.
+    messages:
+      connectionStatus:
+        $ref: '#/components/messages/ConnectionStatus'
+      getUserRequest:
+        $ref: '#/components/messages/GetUserRequest'
+      getUserResponse:
+        $ref: '#/components/messages/GetUserResponse'
+      getDevicesRequest:
+        $ref: '#/components/messages/GetDevicesRequest'
+      getDevicesResponse:
+        $ref: '#/components/messages/GetDevicesResponse'
+      getDeviceStatesRequest:
+        $ref: '#/components/messages/GetDeviceStatesRequest'
+      getDeviceStatesResponse:
+        $ref: '#/components/messages/GetDeviceStatesResponse'
+      shutterMoveRequest:
+        $ref: '#/components/messages/ShutterMoveRequest'
+      shutterPositionRequest:
+        $ref: '#/components/messages/ShutterPositionRequest'
+      switchRequest:
+        $ref: '#/components/messages/SwitchRequest'
+      logoutRequest:
+        $ref: '#/components/messages/LogoutRequest'
+      actionAck:
+        $ref: '#/components/messages/ActionAck'
+      deviceStateUpdate:
+        $ref: '#/components/messages/DeviceStateUpdate'
+
+operations:
+  onConnection:
+    action: send
+    channel:
+      $ref: '#/channels/ws'
+    summary: Connection result pushed by the server right after the socket opens.
+    messages:
+      - $ref: '#/channels/ws/messages/connectionStatus'
+
+  getUser:
+    action: receive
+    channel:
+      $ref: '#/channels/ws'
+    summary: Retrieve the current user info.
+    messages:
+      - $ref: '#/channels/ws/messages/getUserRequest'
+    reply:
+      channel:
+        $ref: '#/channels/ws'
+      messages:
+        - $ref: '#/channels/ws/messages/getUserResponse'
+
+  getDevices:
+    action: receive
+    channel:
+      $ref: '#/channels/ws'
+    summary: List all devices of the account.
+    messages:
+      - $ref: '#/channels/ws/messages/getDevicesRequest'
+    reply:
+      channel:
+        $ref: '#/channels/ws'
+      messages:
+        - $ref: '#/channels/ws/messages/getDevicesResponse'
+
+  getDeviceStates:
+    action: receive
+    channel:
+      $ref: '#/channels/ws'
+    summary: Retrieve the detailed state of the given devices.
+    messages:
+      - $ref: '#/channels/ws/messages/getDeviceStatesRequest'
+    reply:
+      channel:
+        $ref: '#/channels/ws'
+      messages:
+        - $ref: '#/channels/ws/messages/getDeviceStatesResponse'
+
+  moveShutter:
+    action: receive
+    channel:
+      $ref: '#/channels/ws'
+    summary: Move a shutter up, down or stop it.
+    messages:
+      - $ref: '#/channels/ws/messages/shutterMoveRequest'
+    reply:
+      channel:
+        $ref: '#/channels/ws'
+      messages:
+        - $ref: '#/channels/ws/messages/actionAck'
+
+  setShutterPosition:
+    action: receive
+    channel:
+      $ref: '#/channels/ws'
+    summary: Set a shutter to a given open level.
+    messages:
+      - $ref: '#/channels/ws/messages/shutterPositionRequest'
+    reply:
+      channel:
+        $ref: '#/channels/ws'
+      messages:
+        - $ref: '#/channels/ws/messages/actionAck'
+
+  switchDevice:
+    action: receive
+    channel:
+      $ref: '#/channels/ws'
+    summary: Switch a light or a plug on or off.
+    messages:
+      - $ref: '#/channels/ws/messages/switchRequest'
+    reply:
+      channel:
+        $ref: '#/channels/ws'
+      messages:
+        - $ref: '#/channels/ws/messages/actionAck'
+
+  logout:
+    action: receive
+    channel:
+      $ref: '#/channels/ws'
+    summary: Close the session.
+    messages:
+      - $ref: '#/channels/ws/messages/logoutRequest'
+    reply:
+      channel:
+        $ref: '#/channels/ws'
+      messages:
+        - $ref: '#/channels/ws/messages/actionAck'
+
+  onDeviceStateUpdate:
+    action: send
+    channel:
+      $ref: '#/channels/ws'
+    summary: |
+      Device state pushed by the server when a device changes: shutter movement
+      or switch toggled.
+    messages:
+      - $ref: '#/channels/ws/messages/deviceStateUpdate'
+
+components:
+  messages:
+    ConnectionStatus:
+      title: Connection status
+      summary: Pushed once after the socket opens.
+      payload:
+        type: object
+        properties:
+          name:
+            type: string
+            const: connection
+          action:
+            type: string
+            enum: [success, invalid]
+          data:
+            type: string
+      examples:
+        - name: success
+          payload:
+            name: connection
+            action: success
+            data: ""
+
+    GetUserRequest:
+      title: Get user request
+      payload:
+        $ref: '#/components/schemas/RequestEnvelope'
+      examples:
+        - name: getUser
+          payload:
+            method: GET
+            path: /user
+            parameters: {}
+            id: 1
+
+    GetUserResponse:
+      title: Get user response
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/ResponseEnvelope'
+          - type: object
+            properties:
+              data:
+                $ref: '#/components/schemas/User'
+
+    GetDevicesRequest:
+      title: Get devices request
+      payload:
+        $ref: '#/components/schemas/RequestEnvelope'
+      examples:
+        - name: getDevices
+          payload:
+            method: GET
+            path: /device
+            parameters: {}
+            id: 1
+
+    GetDevicesResponse:
+      title: Get devices response
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/ResponseEnvelope'
+          - type: object
+            properties:
+              data:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Device'
+
+    GetDeviceStatesRequest:
+      title: Get device states request
+      payload:
+        $ref: '#/components/schemas/RequestEnvelope'
+      examples:
+        - name: getDeviceStates
+          payload:
+            method: POST
+            path: /device/states
+            parameters:
+              devices: ["L4HActuator_..."]
+            id: 22
+
+    GetDeviceStatesResponse:
+      title: Get device states response
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/ResponseEnvelope'
+          - type: object
+            properties:
+              data:
+                type: object
+                additionalProperties:
+                  $ref: '#/components/schemas/DeviceState'
+
+    ShutterMoveRequest:
+      title: Shutter move request
+      payload:
+        type: object
+        required: [method, path, parameters, id]
+        properties:
+          method:
+            type: string
+            const: POST
+          path:
+            type: string
+            description: "/device/{deviceId}/action/mvtlinear"
+          parameters:
+            type: object
+            properties:
+              movement:
+                type: string
+                enum: [up, down, stop]
+          id:
+            type: integer
+      examples:
+        - name: moveDown
+          payload:
+            method: POST
+            path: /device/L4HActuator_.../action/mvtlinear
+            parameters:
+              movement: down
+            id: 8
+
+    ShutterPositionRequest:
+      title: Shutter position request
+      payload:
+        type: object
+        required: [method, path, parameters, id]
+        properties:
+          method:
+            type: string
+            const: POST
+          path:
+            type: string
+            description: "/device/{deviceId}/action/openlevel"
+          parameters:
+            type: object
+            properties:
+              openLevel:
+                type: integer
+                minimum: 0
+                maximum: 100
+          id:
+            type: integer
+      examples:
+        - name: setPosition
+          payload:
+            method: POST
+            path: /device/L4HActuator_.../action/openlevel
+            parameters:
+              openLevel: 75
+            id: 24
+
+    SwitchRequest:
+      title: Switch request
+      payload:
+        type: object
+        required: [method, path, parameters, id]
+        properties:
+          method:
+            type: string
+            const: POST
+          path:
+            type: string
+            description: "/device/{deviceId}/action/switch"
+          parameters:
+            type: object
+            properties:
+              value:
+                type: integer
+                enum: [0, 1]
+                description: 0 = off, 1 = on
+          id:
+            type: integer
+      examples:
+        - name: switchOn
+          payload:
+            method: POST
+            path: /device/L4HActuator_.../action/switch
+            parameters:
+              value: 1
+            id: 12
+
+    LogoutRequest:
+      title: Logout request
+      payload:
+        $ref: '#/components/schemas/RequestEnvelope'
+      examples:
+        - name: logout
+          payload:
+            method: POST
+            path: /session/logout
+            parameters: {}
+            id: 13
+
+    ActionAck:
+      title: Action acknowledgement
+      summary: Immediate acknowledgement of an action. The effective state follows via a deviceState update.
+      payload:
+        type: object
+        properties:
+          id:
+            type: integer
+          status:
+            type: integer
+
+    DeviceStateUpdate:
+      title: Device state update
+      summary: Unsolicited device state pushed by the server.
+      payload:
+        type: object
+        properties:
+          name:
+            type: string
+            const: deviceState
+          action:
+            type: string
+            const: update
+          data:
+            $ref: '#/components/schemas/DeviceState'
+      examples:
+        - name: shutterMoved
+          payload:
+            name: deviceState
+            action: update
+            data:
+              di: L4HActuator_...
+              rc: 1
+              links:
+                - rt: oic.r.openlevel
+                  openLevel: 69
+                - rt: oic.r.movement.linear
+                  movement: down
+
+  schemas:
+    RequestEnvelope:
+      type: object
+      required: [method, path, parameters, id]
+      description: Common envelope of every client request.
+      properties:
+        method:
+          type: string
+          enum: [GET, POST]
+        path:
+          type: string
+        parameters:
+          type: object
+        id:
+          type: integer
+          description: Incremented per request, echoed in the matching response.
+
+    ResponseEnvelope:
+      type: object
+      description: Common envelope of every server response.
+      properties:
+        id:
+          type: integer
+        status:
+          type: integer
+          examples: [200]
+        data: {}
+
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        bleKey:
+          type: string
+
+    Device:
+      type: object
+      properties:
+        id:
+          type: string
+        provider:
+          type: string
+          description: L4HActuator for DIO actuators.
+        name:
+          type: string
+        modelName:
+          type: string
+        vendor:
+          type: string
+        softwareVersion:
+          type: string
+        type:
+          type: string
+          description: |
+            Device type. Known values: `.dio1.wifi.shutter.mvt_linear.`,
+            `.dio1.wifi.genericSwitch.switch.`, `.dio1.wifi.plug.switch.`.
+        roomId:
+          type: string
+        image:
+          type: [string, "null"]
+
+    Link:
+      type: object
+      description: |
+        A device resource. `rt` is the resource type, `href` its name. Other fields
+        depend on `rt`: `openLevel`, `movement` or `value`.
+      properties:
+        rt:
+          type: string
+        href:
+          type: string
+      additionalProperties: true
+
+    DeviceState:
+      type: object
+      properties:
+        rt:
+          type: string
+          description: e.g. `oic.d.blind` or `oic.d.switch`.
+        di:
+          type: string
+        provider:
+          type: string
+        rc:
+          type: integer
+          description: 1 = connected, 0 = disconnected.
+        links:
+          type: array
+          items:
+            $ref: '#/components/schemas/Link'
