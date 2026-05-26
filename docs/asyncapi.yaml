@@ -7,14 +7,27 @@ info:
     WebSocket protocol of Chacon's cloud service to connect and control DIO devices:
     shutters and light/plug switches.
 
-    The client opens a single WebSocket connection (after a REST login or directly with
-    credentials). Every exchange is a JSON envelope:
+    Operations are described from the server's perspective: `receive` operations
+    are client requests handled by the server, `send` operations are unsolicited
+    messages pushed by the server.
+
+    The client opens a single WebSocket connection (after a REST login or directly
+    with credentials). Every exchange is a JSON envelope:
 
     - Request sent by the client: `{"method": "...", "path": "...", "parameters": {}, "id": N}`.
       The `id` is incremented per request and echoed in the matching response.
     - Response sent by the server: `{"id": N, "status": 200, "data": ...}`.
     - The server also pushes unsolicited `deviceState` / `update` events when a
       device state changes.
+
+    Security considerations:
+
+    - Prefer the `sessionToken` flow over the `email` + `password` query parameters.
+      When credentials travel in the URL, they end up in proxy access logs, server
+      access logs and any client-side trace tooling, so they must be redacted
+      before being persisted.
+    - Only `wss` to `*.chacon.cloud` is supported; plaintext `ws` must not be used
+      because credentials and session tokens travel in the URL.
 
 servers:
   production:
@@ -25,10 +38,35 @@ servers:
       Production WebSocket endpoint. Authenticate either with a session token obtained
       from the REST login (`/ws?sessionToken=r:...`) or directly with credentials
       (`/ws?email=...&password=...&serviceName=...`).
+    bindings:
+      ws:
+        query:
+          type: object
+          oneOf:
+            - required: [sessionToken]
+            - required: [email, password, serviceName]
+          properties:
+            sessionToken:
+              type: string
+              description: Session token returned by the REST login. SENSITIVE.
+            email:
+              type: string
+              format: email
+              description: Account email. PII, also acts as the login identifier.
+            password:
+              type: string
+              format: password
+              description: Account password. SENSITIVE — transmitted in the URL.
+            serviceName:
+              type: string
+              description: Arbitrary client identifier.
+    security:
+      - $ref: '#/components/securitySchemes/sessionTokenQuery'
+      - $ref: '#/components/securitySchemes/userPasswordQuery'
 
 channels:
   ws:
-    address: /ws
+    address: /
     description: The single WebSocket connection carrying every request, response and event.
     messages:
       connectionStatus:
@@ -193,6 +231,8 @@ components:
 
     GetUserRequest:
       title: Get user request
+      correlationId:
+        location: $message.payload#/id
       payload:
         $ref: '#/components/schemas/RequestEnvelope'
       examples:
@@ -205,6 +245,8 @@ components:
 
     GetUserResponse:
       title: Get user response
+      correlationId:
+        location: $message.payload#/id
       payload:
         allOf:
           - $ref: '#/components/schemas/ResponseEnvelope'
@@ -215,6 +257,8 @@ components:
 
     GetDevicesRequest:
       title: Get devices request
+      correlationId:
+        location: $message.payload#/id
       payload:
         $ref: '#/components/schemas/RequestEnvelope'
       examples:
@@ -223,10 +267,12 @@ components:
             method: GET
             path: /device
             parameters: {}
-            id: 1
+            id: 2
 
     GetDevicesResponse:
       title: Get devices response
+      correlationId:
+        location: $message.payload#/id
       payload:
         allOf:
           - $ref: '#/components/schemas/ResponseEnvelope'
@@ -239,6 +285,8 @@ components:
 
     GetDeviceStatesRequest:
       title: Get device states request
+      correlationId:
+        location: $message.payload#/id
       payload:
         $ref: '#/components/schemas/RequestEnvelope'
       examples:
@@ -247,11 +295,13 @@ components:
             method: POST
             path: /device/states
             parameters:
-              devices: ["L4HActuator_..."]
-            id: 22
+              devices: ["L4HActuator_abcdef1234567890"]
+            id: 3
 
     GetDeviceStatesResponse:
       title: Get device states response
+      correlationId:
+        location: $message.payload#/id
       payload:
         allOf:
           - $ref: '#/components/schemas/ResponseEnvelope'
@@ -264,95 +314,95 @@ components:
 
     ShutterMoveRequest:
       title: Shutter move request
+      correlationId:
+        location: $message.payload#/id
       payload:
-        type: object
-        required: [method, path, parameters, id]
-        properties:
-          method:
-            type: string
-            const: POST
-          path:
-            type: string
-            description: "/device/{deviceId}/action/mvtlinear"
-          parameters:
-            type: object
+        allOf:
+          - $ref: '#/components/schemas/RequestEnvelope'
+          - type: object
             properties:
-              movement:
-                type: string
-                enum: [up, down, stop]
-          id:
-            type: integer
+              path:
+                description: "/device/{deviceId}/action/mvtlinear"
+              parameters:
+                type: object
+                required: [movement]
+                properties:
+                  movement:
+                    type: string
+                    enum: [up, down, stop]
       examples:
         - name: moveDown
           payload:
             method: POST
-            path: /device/L4HActuator_.../action/mvtlinear
+            path: /device/L4HActuator_abcdef1234567890/action/mvtlinear
             parameters:
               movement: down
-            id: 8
+            id: 4
 
     ShutterPositionRequest:
       title: Shutter position request
+      correlationId:
+        location: $message.payload#/id
       payload:
-        type: object
-        required: [method, path, parameters, id]
-        properties:
-          method:
-            type: string
-            const: POST
-          path:
-            type: string
-            description: "/device/{deviceId}/action/openlevel"
-          parameters:
-            type: object
+        allOf:
+          - $ref: '#/components/schemas/RequestEnvelope'
+          - type: object
             properties:
-              openLevel:
-                type: integer
-                minimum: 0
-                maximum: 100
-          id:
-            type: integer
+              path:
+                description: "/device/{deviceId}/action/openlevel"
+              parameters:
+                type: object
+                required: [openLevel]
+                properties:
+                  openLevel:
+                    type: integer
+                    minimum: 0
+                    maximum: 100
       examples:
         - name: setPosition
           payload:
             method: POST
-            path: /device/L4HActuator_.../action/openlevel
+            path: /device/L4HActuator_abcdef1234567890/action/openlevel
             parameters:
               openLevel: 75
-            id: 24
+            id: 5
 
     SwitchRequest:
       title: Switch request
+      correlationId:
+        location: $message.payload#/id
       payload:
-        type: object
-        required: [method, path, parameters, id]
-        properties:
-          method:
-            type: string
-            const: POST
-          path:
-            type: string
-            description: "/device/{deviceId}/action/switch"
-          parameters:
-            type: object
+        allOf:
+          - $ref: '#/components/schemas/RequestEnvelope'
+          - type: object
             properties:
-              value:
-                type: integer
-                enum: [0, 1]
-                description: 0 = off, 1 = on
-          id:
-            type: integer
+              path:
+                description: "/device/{deviceId}/action/switch"
+              parameters:
+                type: object
+                required: [value]
+                properties:
+                  value:
+                    type: integer
+                    enum: [0, 1]
+                    description: 0 = off, 1 = on
       examples:
         - name: switchOn
           payload:
             method: POST
-            path: /device/L4HActuator_.../action/switch
+            path: /device/L4HActuator_abcdef1234567890/action/switch
             parameters:
               value: 1
-            id: 12
+            id: 6
 
     LogoutRequest:
       title: Logout request
+      summary: |
+        Closes the session. Only required when the client authenticated via the
+        REST login and the `sessionToken` query parameter. Clients connected with
+        the `email` + `password` query parameters simply close the WebSocket.
+      correlationId:
+        location: $message.payload#/id
       payload:
         $ref: '#/components/schemas/RequestEnvelope'
       examples:
@@ -361,18 +411,15 @@ components:
             method: POST
             path: /session/logout
             parameters: {}
-            id: 13
+            id: 7
 
     ActionAck:
       title: Action acknowledgement
       summary: Immediate acknowledgement of an action. The effective state follows via a deviceState update.
+      correlationId:
+        location: $message.payload#/id
       payload:
-        type: object
-        properties:
-          id:
-            type: integer
-          status:
-            type: integer
+        $ref: '#/components/schemas/ResponseEnvelope'
 
     DeviceStateUpdate:
       title: Device state update
@@ -394,13 +441,29 @@ components:
             name: deviceState
             action: update
             data:
-              di: L4HActuator_...
+              di: L4HActuator_abcdef1234567890
               rc: 1
               links:
                 - rt: oic.r.openlevel
                   openLevel: 69
                 - rt: oic.r.movement.linear
                   movement: down
+
+  securitySchemes:
+    sessionTokenQuery:
+      type: httpApiKey
+      in: query
+      name: sessionToken
+      description: |
+        Bearer token obtained from the REST login endpoint. Passed as a query
+        parameter on the WebSocket URL. SENSITIVE — must be redacted from logs.
+    userPasswordQuery:
+      type: userPassword
+      description: |
+        Email and password passed as `email` and `password` query parameters on
+        the WebSocket URL. SENSITIVE and not recommended: prefer the
+        `sessionTokenQuery` flow because URL-embedded credentials end up in
+        proxy logs and client trace tooling.
 
   schemas:
     RequestEnvelope:
@@ -417,17 +480,21 @@ components:
           type: object
         id:
           type: integer
+          minimum: 1
           description: Incremented per request, echoed in the matching response.
 
     ResponseEnvelope:
       type: object
       description: Common envelope of every server response.
+      required: [id, status]
       properties:
         id:
           type: integer
+          minimum: 1
         status:
           type: integer
-          examples: [200]
+          description: 200 on success; any other value means the client raises an error.
+          default: 200
         data: {}
 
     User:
@@ -462,8 +529,12 @@ components:
         type:
           type: string
           description: |
-            Device type. Known values: `.dio1.wifi.shutter.mvt_linear.`,
-            `.dio1.wifi.genericSwitch.switch.`, `.dio1.wifi.plug.switch.`.
+            Device type. The Python library matches on the substrings
+            `.wifi.shutter.`, `.wifi.genericSwitch.` and `.wifi.plug.`.
+          enum:
+            - .dio1.wifi.shutter.mvt_linear.
+            - .dio1.wifi.genericSwitch.switch.
+            - .dio1.wifi.plug.switch.
         roomId:
           type: string
         image:
