@@ -265,3 +265,55 @@ def test_doorbell_ring_callback() -> None:
 
     assert "last_event_image" not in received_events[3]
     assert received_events[3]["last_event_type"] == "ring"
+
+
+@pytest.mark.asyncio
+async def test_doorbell_ring_push_received_via_websocket(aiohttp_server) -> None:
+    """A doorbell ring pushed by the WS server reaches the registered callback end-to-end."""
+
+    recording_queue: asyncio.Queue = asyncio.Queue()
+    push_queue: asyncio.Queue = asyncio.Queue()
+    await run_fake_http_server(aiohttp_server, recording_queue, push_queue=push_queue)
+
+    received_events: asyncio.Queue = asyncio.Queue()
+
+    def doorbell_callback(data: Any) -> None:
+        received_events.put_nowait(data)
+
+    client = DIOChaconAPIClient(USERNAME, PASSWORD, SERVICE_NAME)
+    client.set_callback_device_state(doorbell_callback)
+    client._set_server_urls(f"ws://localhost:{MOCK_PORT}/ws")
+
+    await client.search_all_devices(with_state=True)
+    while not recording_queue.empty():
+        await recording_queue.get()
+        recording_queue.task_done()
+
+    ring_push = {
+        "name": "deviceState",
+        "action": "update",
+        "data": {
+            "di": "Tuya_idmock4",
+            "rc": 1,
+            "links": [
+                {
+                    "rt": "gw.r.lastEvent",
+                    "href": "lastEvent",
+                    "type": "ring",
+                    "ts": "2026-05-22T11:00:00.000Z",
+                    "data": {"reason": None, "image": "https://mock.example.com/ring.jpeg"},
+                }
+            ],
+        },
+    }
+    await push_queue.put(ring_push)
+
+    event = await asyncio.wait_for(received_events.get(), 5)
+    assert event["id"] == "Tuya_idmock4"
+    assert event["type"] == "DOORBELL"
+    assert event["connected"]
+    assert event["last_event_type"] == "ring"
+    assert event["last_event_timestamp"] == "2026-05-22T11:00:00.000Z"
+    assert event["last_event_image"] == "https://mock.example.com/ring.jpeg"
+
+    await client.disconnect()

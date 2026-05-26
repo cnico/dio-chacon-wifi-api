@@ -247,7 +247,15 @@ async def websocket_messages_handler(ws: aiohttp.web_ws.WebSocketResponse, recor
     _LOGGER.debug('MOCK Server WS : Websocket connection closed')
 
 
-async def websocket_handler(request: web.Request, recording_queue: Queue):
+async def pump_push_queue(ws: aiohttp.web_ws.WebSocketResponse, push_queue: Queue) -> None:
+    while not ws.closed:
+        message = await push_queue.get()
+        _LOGGER.debug("MOCK Server WS : pushing queued message. %s", message)
+        await ws.send_str(json.dumps(message))
+        push_queue.task_done()
+
+
+async def websocket_handler(request: web.Request, recording_queue: Queue, push_queue: Queue | None = None):
     _LOGGER.debug('MOCK Server WS : Websocket connection starting')
     ws = web.WebSocketResponse()
     await ws.prepare(request)
@@ -258,19 +266,29 @@ async def websocket_handler(request: web.Request, recording_queue: Queue):
     else:
         _LOGGER.debug('MOCK Server WS : Sending connection success')
         await ws.send_str('{"name":"connection","action":"success","data":""}')
+
+    pump_task = asyncio.create_task(pump_push_queue(ws, push_queue)) if push_queue is not None else None
+
     await asyncio.create_task(websocket_messages_handler(ws, recording_queue))
+
+    if pump_task is not None:
+        pump_task.cancel()
+        try:
+            await pump_task
+        except asyncio.CancelledError:
+            pass
 
     return ws
 
 
-async def run_fake_http_server(aiohttp_server, recording_queue: Queue) -> None:
+async def run_fake_http_server(aiohttp_server, recording_queue: Queue, push_queue: Queue | None = None) -> None:
 
     _LOGGER.debug("Starting Mock server...")
 
     app = web.Application()
 
     call = partial(endpoint, recording_queue=recording_queue)
-    call_ws = partial(websocket_handler, recording_queue=recording_queue)
+    call_ws = partial(websocket_handler, recording_queue=recording_queue, push_queue=push_queue)
     app.add_routes([web.route("*", "/api/{tail:.*}", call), web.route("*", "/ws", call_ws)])
 
     await aiohttp_server(app, port=MOCK_PORT)
