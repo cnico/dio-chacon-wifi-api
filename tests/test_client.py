@@ -217,4 +217,51 @@ def test_doorbell_ring_callback() -> None:
     }
     client._message_received_callback(unsafe_push)
 
-    assert received_events[1]["last_event_image"] is None
+    assert "last_event_image" not in received_events[1]
+    assert received_events[1]["last_event_type"] == "ring"
+    assert received_events[1]["last_event_timestamp"] == "2026-05-22T10:22:00.000Z"
+
+    no_image_push = {
+        "name": "deviceState",
+        "action": "update",
+        "data": {
+            "di": "Tuya_idmock4",
+            "rc": 1,
+            "links": [
+                {
+                    "rt": "gw.r.lastEvent",
+                    "href": "lastEvent",
+                    "type": "ring",
+                    "ts": "2026-05-22T10:23:00.000Z",
+                    "data": {"reason": None},
+                }
+            ],
+        },
+    }
+    client._message_received_callback(no_image_push)
+
+    assert "last_event_image" not in received_events[2]
+    assert received_events[2]["last_event_type"] == "ring"
+    assert received_events[2]["last_event_timestamp"] == "2026-05-22T10:23:00.000Z"
+
+    userinfo_push = {
+        "name": "deviceState",
+        "action": "update",
+        "data": {
+            "di": "Tuya_idmock4",
+            "rc": 1,
+            "links": [
+                {
+                    "rt": "gw.r.lastEvent",
+                    "href": "lastEvent",
+                    "type": "ring",
+                    "ts": "2026-05-22T10:24:00.000Z",
+                    "data": {"reason": None, "image": "https://user:secret@mock.example.com/ring.jpeg"},
+                }
+            ],
+        },
+    }
+    client._message_received_callback(userinfo_push)
+
+    assert "last_event_image" not in received_events[3]
+    assert received_events[3]["last_event_type"] == "ring"

@@ -6,6 +6,7 @@ import logging
 from asyncio import Lock
 from asyncio import Queue
 from typing import Any
+from urllib.parse import urlsplit
 
 from .const import DeviceTypeEnum
 from .const import DIOCHACON_WS_URL
@@ -19,10 +20,24 @@ _LOGGER = logging.getLogger(__name__)
 
 
 def _validated_image_url(url: Any) -> str | None:
-    """Returns the image URL only when it is a safe https URL, else None."""
-    if isinstance(url, str) and url.startswith("https://"):
-        return url
-    return None
+    """Returns the image URL only when its scheme is https and it carries no embedded credentials.
+
+    The helper guards against the most common mis-parses of a raw URL string
+    (non-https scheme, scheme written in mixed case, URL with userinfo). It
+    does not validate the host or the network reachability of the URL.
+    Consumers are still expected to apply their own policy before fetching
+    or rendering the URL.
+    """
+    if not isinstance(url, str):
+        return None
+    parsed = urlsplit(url)
+    if parsed.scheme.lower() != "https":
+        return None
+    if not parsed.hostname:
+        return None
+    if parsed.username or parsed.password:
+        return None
+    return url
 
 
 class DIOChaconAPIClient:
@@ -118,7 +133,13 @@ class DIOChaconAPIClient:
 
     @staticmethod
     def _extract_links_state(links: list) -> dict:
-        """Maps the known device links coming from the server into flat state keys."""
+        """Maps the known device links coming from the server into flat state keys.
+
+        The returned dict carries a key only when the corresponding link is present
+        in the payload (and, for `last_event_image`, when the URL is also a safe
+        https URL per `_validated_image_url`). Consumers can therefore use `in`
+        to distinguish a missing value from a falsy one.
+        """
         state = {}
         for link in links:
             if link["rt"] == "oic.r.openlevel":
@@ -130,7 +151,9 @@ class DIOChaconAPIClient:
             if link["rt"] == "gw.r.lastEvent":
                 state["last_event_type"] = link["type"]
                 state["last_event_timestamp"] = link["ts"]
-                state["last_event_image"] = _validated_image_url(link.get("data", {}).get("image"))
+                image = _validated_image_url(link.get("data", {}).get("image"))
+                if image is not None:
+                    state["last_event_image"] = image
         return state
 
     def _message_received_callback(self, data: Any) -> None:
@@ -261,7 +284,11 @@ class DIOChaconAPIClient:
             with_state: True to return the detailed states like shutter position and switches on or off.
 
         Returns:
-            A list of tuples composed of id, name, type, openlevel and movement for shutter, is_on for switches.
+            A dict keyed by device id, with id, name, type, model and (when with_state is True)
+            connected plus the device-specific state keys: openlevel and movement for shutters,
+            is_on for switches, last_event_type / last_event_timestamp / last_event_image for
+            doorbells. State keys are present only when the underlying link carries a value,
+            so `last_event_image` is absent when the doorbell has no camera or the URL is unsafe.
         """
 
         raw_results = await self._send_ws_message("GET", "/device", {})
@@ -301,7 +328,11 @@ class DIOChaconAPIClient:
             device_infos: the devices infos (name and model) for requested ids. Used only to produce a log.
 
         Returns:
-            A list of tuples composed of id, connected ; openlevel and movement for shutter, is_on for switch.
+            A dict keyed by device id, with id, connected and the device-specific state keys:
+            openlevel and movement for shutters, is_on for switches, last_event_type /
+            last_event_timestamp / last_event_image for doorbells. State keys are present
+            only when the underlying link carries a value, so `last_event_image` is absent
+            when the doorbell has no camera or the URL is unsafe.
         """
 
         parameters = {"devices": ids}
