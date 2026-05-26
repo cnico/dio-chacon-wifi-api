@@ -8,8 +8,6 @@ import pytest
 from aiohttp_fake_server_utils import MOCK_PORT
 from aiohttp_fake_server_utils import run_fake_http_server
 from dio_chacon_wifi_api.session import DIOChaconClientSession
-from dio_chacon_wifi_api.session import _redact_url
-from yarl import URL
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -45,18 +43,3 @@ async def test_session(aiohttp_server) -> None:
     message_queue.task_done()
 
     await session.disconnect()
-
-
-def test_redact_url_masks_credentials() -> None:
-    """The redacted URL masks the credentials and keeps the non sensitive service name visible."""
-
-    url = URL("wss://host/ws?email=toto@toto.com&password=DUMMY_PASS&serviceName=test_client&sessionToken=r:abc123")
-    redacted = _redact_url(url)
-
-    assert "toto@toto.com" not in redacted
-    assert "DUMMY_PASS" not in redacted
-    assert "r:abc123" not in redacted
-    assert "email=***" in redacted
-    assert "password=***" in redacted
-    assert "sessionToken=***" in redacted
-    assert "serviceName=test_client" in redacted

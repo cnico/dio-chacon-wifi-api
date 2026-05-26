@@ -10,6 +10,8 @@ import urllib
 
 import aiohttp
 
+from .utils import redact_url
+
 
 MAX_FAILED_ATTEMPTS = 5
 
@@ -19,14 +21,6 @@ STATE_STARTING = "starting"
 STATE_STOPPED = "stopped"
 
 _LOGGER = logging.getLogger(__name__)
-
-_SENSITIVE_QUERY_KEYS = ("email", "password", "sessionToken")
-
-
-def _redact_url(url) -> str:
-    """Returns the URL as a string with sensitive query parameters masked."""
-    redactions = {key: "***" for key in _SENSITIVE_QUERY_KEYS if key in url.query}
-    return str(url.update_query(redactions))
 
 
 class DIOChaconClientSession:
@@ -59,16 +53,16 @@ class DIOChaconClientSession:
         self._callback = callback
 
         async def on_request_start(session, trace_config_ctx, params):
-            _LOGGER.debug("aiohttp request start : %s %s", params.method, _redact_url(params.url))
+            _LOGGER.debug("aiohttp request start : %s %s", params.method, redact_url(params.url))
 
         async def on_request_chunk_sent(session, trace_config_ctx, params):
-            _LOGGER.debug("aiohttp request chunk sent : %s %s", params.method, _redact_url(params.url))
+            _LOGGER.debug("aiohttp request chunk sent : %s %s", params.method, redact_url(params.url))
 
         async def on_response_chunk_received(session, trace_config_ctx, params):
-            _LOGGER.debug("aiohttp response chunk received : %s %s", params.method, _redact_url(params.url))
+            _LOGGER.debug("aiohttp response chunk received : %s %s", params.method, redact_url(params.url))
 
         async def on_request_end(session, trace_config_ctx, params):
-            _LOGGER.debug("aiohttp request end : %s %s", params.method, _redact_url(params.url))
+            _LOGGER.debug("aiohttp request end : %s %s", params.method, redact_url(params.url))
 
         trace_config = aiohttp.TraceConfig()
         trace_config.on_request_start.append(on_request_start)
