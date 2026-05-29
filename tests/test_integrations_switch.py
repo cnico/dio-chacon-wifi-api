@@ -13,6 +13,7 @@ from dio_chacon_wifi_api.const import DeviceTypeEnum
 
 USERNAME = os.environ.get('DIO_USERNAME')
 PASSWORD = os.environ.get('DIO_PASSWORD')
+SESSION_TOKEN = os.environ.get('DIO_SESSION_TOKEN')
 MY_SWITCH_ID = os.environ.get('DIO_SHUTTER_ID_TEST_SWITCH')
 
 logging.basicConfig(level=logging.DEBUG)
@@ -35,7 +36,7 @@ if os.environ.get('PYDBG', None):
 async def test_integration_simple() -> None:
     """Connect then lists all the devices."""
 
-    assert USERNAME is not None, "Please set env var before running integration tests !"
+    assert SESSION_TOKEN or USERNAME, "Please set env var before running integration tests !"
 
     def log_callback(data: Any) -> None:
         _LOGGER.info("******** CALLBACK MESSAGE RECEIVED *******")
@@ -43,7 +44,10 @@ async def test_integration_simple() -> None:
         _LOGGER.info("******** CALLBACK MESSAGE DONE *******")
 
     # Init client
-    client = DIOChaconAPIClient(USERNAME, PASSWORD, callback_device_state=log_callback)
+    if SESSION_TOKEN:
+        client = DIOChaconAPIClient(session_token=SESSION_TOKEN, callback_device_state=log_callback)
+    else:
+        client = DIOChaconAPIClient(USERNAME, PASSWORD, callback_device_state=log_callback)
 
     user_id = await client.get_user_id()
     _LOGGER.info(f"User Id retrieved : {user_id}")

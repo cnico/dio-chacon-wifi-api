@@ -48,10 +48,11 @@ class DIOChaconAPIClient:
 
     def __init__(
         self,
-        login_email: str,
-        password: str,
+        login_email: str = None,
+        password: str = None,
         service_name: str = "python_generic",
         callback_device_state: callable = None,
+        session_token: str = None,
     ) -> None:
         """Initialize the client API. Actually do nothing but storing informations.
         The effective authentication and connection are lazyly achieved.
@@ -61,9 +62,12 @@ class DIOChaconAPIClient:
             password: string containing your password in DIO app
             service_name: arbitrary string identifying this client
             callback_device_state: the callback method that will be called for server side events
+            session_token: token obtained from the HTTP login, used to authenticate
+                the websocket instead of the email and password
         """
         self._login_email: str = login_email
         self._password: str = password
+        self._session_token: str = session_token
         self._service_name: str = service_name
         self._callback_device_state: callable = callback_device_state
         self._callback_device_state_by_device: dict[str, callable] = {}
@@ -103,7 +107,11 @@ class DIOChaconAPIClient:
                     _LOGGER.debug("Session creation via init_session")
 
                     session = DIOChaconClientSession(
-                        self._login_email, self._password, self._service_name, self._message_received_callback
+                        self._login_email,
+                        self._password,
+                        self._service_name,
+                        self._message_received_callback,
+                        self._session_token,
                     )
                     # Stores session to be able to call disconnect whatever happens next (ok or ko auth)
                     self._session = session

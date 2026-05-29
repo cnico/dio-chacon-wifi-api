@@ -13,6 +13,7 @@ from dio_chacon_wifi_api.const import DeviceTypeEnum
 
 USERNAME = os.environ.get('DIO_USERNAME')
 PASSWORD = os.environ.get('DIO_PASSWORD')
+SESSION_TOKEN = os.environ.get('DIO_SESSION_TOKEN')
 MY_DOORBELL_ID = os.environ.get('DIO_DOORBELL_ID_TEST')
 
 RING_WAIT_TIMEOUT_SECONDS = 60
@@ -37,7 +38,7 @@ if os.environ.get('PYDBG', None):
 async def test_integration_doorbell() -> None:
     """Connect, list the doorbell, then wait for a manual ring and assert ring and image features."""
 
-    assert USERNAME is not None, "Please set env var before running integration tests !"
+    assert SESSION_TOKEN or USERNAME, "Please set env var before running integration tests !"
 
     global_ring_events: asyncio.Queue = asyncio.Queue()
     per_device_ring_events: asyncio.Queue = asyncio.Queue()
@@ -54,7 +55,10 @@ async def test_integration_doorbell() -> None:
         per_device_ring_events.put_nowait(data)
         _LOGGER.info("******** PER DEVICE CALLBACK MESSAGE DONE *******")
 
-    client = DIOChaconAPIClient(USERNAME, PASSWORD, callback_device_state=global_callback)
+    if SESSION_TOKEN:
+        client = DIOChaconAPIClient(session_token=SESSION_TOKEN, callback_device_state=global_callback)
+    else:
+        client = DIOChaconAPIClient(USERNAME, PASSWORD, callback_device_state=global_callback)
     client.set_callback_device_state_by_device(MY_DOORBELL_ID, per_device_callback)
 
     user_id = await client.get_user_id()

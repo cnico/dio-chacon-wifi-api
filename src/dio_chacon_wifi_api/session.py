@@ -34,21 +34,31 @@ class DIOChaconClientSession:
     _websocket: aiohttp.ClientWebSocketResponse | None = None
     _listen_task: asyncio.Task | None = None
 
-    def __init__(self, login_email: str, password: str, service_name: str, callback: callable) -> None:
+    def __init__(
+        self,
+        login_email: str,
+        password: str,
+        service_name: str,
+        callback: callable,
+        session_token: str = None,
+    ) -> None:
         """Initialize and authenticate.
 
         Parameters:
-            username: the dio chacon user (mainly the email to log in the app)
+            login_email: the dio chacon user (mainly the email to log in the app)
             password: the dio chacon user's password
             service_name: arbitrary string identifying the client
             callback (Runnable):
                 Called when interesting events occur. Provides arguments:
                    data (str): websocket payload contents deserialized from json
+            session_token: token obtained from the HTTP login, used to authenticate
+                the websocket instead of the email and password
         """
         self._login_email = login_email
         self._password = password
         self._service_name = service_name
         self._callback = callback
+        self._session_token = session_token
 
         async def on_request_start(session, trace_config_ctx, params):
             _LOGGER.debug(f"aiohttp request start : {params}")
@@ -88,17 +98,15 @@ class DIOChaconClientSession:
             await self._running()
 
     async def _running(self) -> None:
-        url = (
-            self._ws_url
-            + "?"
-            + urllib.parse.urlencode(
-                {
-                    'email': self._login_email,
-                    'password': self._password,
-                    'serviceName': self._service_name,
-                }
-            )
-        )
+        if self._session_token:
+            query_parameters = {'sessionToken': self._session_token}
+        else:
+            query_parameters = {
+                'email': self._login_email,
+                'password': self._password,
+                'serviceName': self._service_name,
+            }
+        url = self._ws_url + "?" + urllib.parse.urlencode(query_parameters, safe=':')
 
         self._state = STATE_STARTING
 
