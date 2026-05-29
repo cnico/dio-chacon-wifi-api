@@ -70,8 +70,7 @@ async def test_integration_doorbell() -> None:
     my_device = list_devices[MY_DOORBELL_ID]
     _LOGGER.info(f"My device found {MY_DOORBELL_ID} : {my_device}")
     assert my_device['type'] == DeviceTypeEnum.DOORBELL.value
-    assert 'last_event_type' in my_device
-    assert 'last_event_timestamp' in my_device
+    assert my_device['connected']
 
     list_details = await client.get_status_details([MY_DOORBELL_ID])
     _LOGGER.info(f"Details found : {list_details}")
