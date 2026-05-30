@@ -42,6 +42,11 @@ Chacon have lots of devices that could be managed via this library.
 The wifi protocol is described in [Protocol.md](https://github.com/cnico/dio-chacon-wifi-api/blob/main/Protocol.md).
 You can test this protocol manually through postman with establishing a connection via correct authentification (email + password of your chacon mobile app account) ; then upgrade the connection to Websocket and then interact with json messages in the Websocket stream.
 
+The same protocol is also described in two machine-readable specifications under the [docs/](https://github.com/cnico/dio-chacon-wifi-api/blob/main/docs) folder :
+
+- [docs/asyncapi.yaml](https://github.com/cnico/dio-chacon-wifi-api/blob/main/docs/asyncapi.yaml) is an [AsyncAPI 3.0](https://www.asyncapi.com/) description of the WebSocket protocol (requests, replies and server-pushed device state events). Open it in the [AsyncAPI Studio](https://studio.asyncapi.com/) to browse the operations and message schemas, or generate static HTML documentation locally with the [`@asyncapi/cli`](https://www.asyncapi.com/tools/cli) : `asyncapi generate fromTemplate docs/asyncapi.yaml @asyncapi/html-template -o ./asyncapi-html`. AsyncAPI Studio is a hosted service, so prefer the local CLI command if you modify the spec to include real device identifiers or session tokens.
+- [docs/opencollection.yml](https://github.com/cnico/dio-chacon-wifi-api/blob/main/docs/opencollection.yml) is an [OpenCollection 1.0](https://www.opencollection.io/) executable collection bundling the REST login call and the WebSocket operations. Import it in an OpenCollection-aware client — [Bruno](https://www.usebruno.com/) is the primary tested target — and fill in the `email` / `password` collection variables with your Chacon mobile app account to replay the requests against the cloud server. The credentials travel in the URL query string, so treat any exported version of the collection as sensitive.
+
 For the implementation of the library, it is based on the great [aiohttp](https://docs.aiohttp.org/) library that we use as a http client for REST requests and websocket exchange.
 All the library is asynchronous and based on [asyncio](https://docs.python.org/3/library/asyncio-dev.html).
 
