@@ -4,6 +4,20 @@ info:
   name: DIO Chacon WiFi API
   summary: Connect and control DIO devices (shutters, switches, doorbell).
   version: "1.0.0"
+  description: |
+    Executable collection for the Chacon cloud WebSocket protocol.
+
+    Security considerations:
+
+    - The WebSocket carries credentials in the URL query string. Exporting,
+      sharing or screen-recording this collection (or any request inspector
+      that logged it) will leak `email`, `password` or `sessionToken`.
+    - Treat the `email`, `password` and `sessionToken` variables as secrets
+      even when only `password` is masked by your tooling — the rendered URL
+      contains all of them in plaintext.
+    - Prefer the REST `Login` followed by the `Connection (token)` request
+      over the `Connection (credentials)` variant when integrating with a
+      shared environment.
 
 config:
   environments:
@@ -13,11 +27,15 @@ config:
           value: https://l4hfront-prod.chacon.cloud
         - name: wsUrl
           value: wss://l4hfront-prod.chacon.cloud/ws
+        - name: serviceName
+          value: opencollection
         - name: email
           value: ""
+          secret: true
+        - name: password
+          secret: true
         - name: sessionToken
           value: ""
-        - name: password
           secret: true
 
 bundled: true
@@ -47,9 +65,12 @@ items:
                 "installationId": "top"
               }
         docs: |-
-          HTTP login. The response contains a session token used to open the
-          WebSocket connection. Copy the returned `sessionToken` into the
-          environment variable `sessionToken`.
+          Optional REST login: only useful when authenticating the WebSocket via
+          a `sessionToken`. The Python library does not call this endpoint — it
+          opens the WebSocket directly with credentials in the query string.
+
+          The response contains a session token. Copy the returned `sessionToken`
+          into the environment variable `sessionToken`.
 
   - info:
       name: WebSocket
@@ -61,19 +82,26 @@ items:
           type: websocket
           seq: 1
         websocket:
-          url: "{{wsUrl}}?sessionToken={{sessionToken}}"
+          url:
+            - title: With credentials (default — used by the Python library)
+              selected: true
+              value: "{{wsUrl}}?email={{email}}&password={{password}}&serviceName={{serviceName}}"
+            - title: With session token (after REST Login)
+              value: "{{wsUrl}}?sessionToken={{sessionToken}}"
         docs: |-
-          Opens the WebSocket connection. Authenticate with a session token from
-          the REST Login, or directly with credentials:
-          `{{wsUrl}}?email={{email}}&password={{password}}&serviceName=opencollection`.
-          On success the server sends `{"name":"connection","action":"success"}`.
+          Opens the WebSocket connection. The default URL uses the
+          credentials-in-query flow, which matches what the Python library does.
+          The alternative URL uses the `sessionToken` obtained from the REST
+          Login request — preferred when the connection URL might be exported or
+          logged. On success the server pushes
+          `{"name":"connection","action":"success","data":""}`.
 
       - info:
           name: Get user
           type: websocket
           seq: 2
         websocket:
-          url: "{{wsUrl}}?sessionToken={{sessionToken}}"
+          url: "{{wsUrl}}?email={{email}}&password={{password}}&serviceName={{serviceName}}"
           message:
             type: json
             data: '{"method":"GET","path":"/user","parameters":{},"id":1}'
@@ -84,55 +112,55 @@ items:
           type: websocket
           seq: 3
         websocket:
-          url: "{{wsUrl}}?sessionToken={{sessionToken}}"
+          url: "{{wsUrl}}?email={{email}}&password={{password}}&serviceName={{serviceName}}"
           message:
             type: json
-            data: '{"method":"GET","path":"/device","parameters":{},"id":1}'
-        docs: |-
-          Lists all the devices. The `type` field identifies each device, e.g.
-          `.wifi.doorBell.camera.videostream.` for the doorbell.
+            data: '{"method":"GET","path":"/device","parameters":{},"id":2}'
+        docs: Lists all the devices of the account.
 
       - info:
           name: Get device states
           type: websocket
           seq: 4
         websocket:
-          url: "{{wsUrl}}?sessionToken={{sessionToken}}"
+          url: "{{wsUrl}}?email={{email}}&password={{password}}&serviceName={{serviceName}}"
           message:
             type: json
-            data: '{"method":"POST","path":"/device/states","parameters":{"devices":["L4HActuator_..."]},"id":22}'
-        docs: |-
-          Retrieves the state of the given devices. For the doorbell, the
-          `gw.r.lastEvent` link carries the last event type ("ring"), its timestamp
-          and a snapshot image URL.
+            data: '{"method":"POST","path":"/device/states","parameters":{"devices":["L4HActuator_abcdef1234567890"]},"id":3}'
+        docs: Retrieves the state of the given devices.
 
       - info:
           name: Shutter action
           type: websocket
           seq: 5
         websocket:
-          url: "{{wsUrl}}?sessionToken={{sessionToken}}"
+          url: "{{wsUrl}}?email={{email}}&password={{password}}&serviceName={{serviceName}}"
           message:
             - title: Move up / down / stop
               selected: true
               message:
                 type: json
-                data: '{"method":"POST","path":"/device/L4HActuator_.../action/mvtlinear","parameters":{"movement":"down"},"id":8}'
+                data: '{"method":"POST","path":"/device/L4HActuator_abcdef1234567890/action/mvtlinear","parameters":{"movement":"down"},"id":4}'
             - title: Set position (0 to 100)
               message:
                 type: json
-                data: '{"method":"POST","path":"/device/L4HActuator_.../action/openlevel","parameters":{"openLevel":75},"id":24}'
-        docs: Controls a shutter. `movement` accepts "up", "down" or "stop".
+                data: '{"method":"POST","path":"/device/L4HActuator_abcdef1234567890/action/openlevel","parameters":{"openLevel":75},"id":5}'
+        docs: |-
+          Controls a shutter. `movement` accepts "up", "down" or "stop".
+
+          Note: every WebSocket request on a given connection must use a unique,
+          monotonically increasing `id`. The values shown here are illustrative;
+          increment them across the session.
 
       - info:
           name: Switch action
           type: websocket
           seq: 6
         websocket:
-          url: "{{wsUrl}}?sessionToken={{sessionToken}}"
+          url: "{{wsUrl}}?email={{email}}&password={{password}}&serviceName={{serviceName}}"
           message:
             type: json
-            data: '{"method":"POST","path":"/device/L4HActuator_.../action/switch","parameters":{"value":0},"id":12}'
+            data: '{"method":"POST","path":"/device/L4HActuator_abcdef1234567890/action/switch","parameters":{"value":0},"id":6}'
         docs: Switches a light or a plug on or off. `value` accepts 0 (off) or 1 (on).
 
       - info:
@@ -143,5 +171,8 @@ items:
           url: "{{wsUrl}}?sessionToken={{sessionToken}}"
           message:
             type: json
-            data: '{"method":"POST","path":"/session/logout","parameters":{},"id":13}'
-        docs: Closes the session. Only required when connected with a session token.
+            data: '{"method":"POST","path":"/session/logout","parameters":{},"id":7}'
+        docs: |-
+          Closes the session. Only required when connected via the
+          `sessionToken` flow; with the credentials flow, simply close the
+          WebSocket.
