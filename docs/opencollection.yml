@@ -2,7 +2,7 @@ opencollection: "1.0.0"
 
 info:
   name: DIO Chacon WiFi API
-  summary: Connect and control DIO devices (shutters and switches).
+  summary: Connect and control DIO devices (shutters, switches, doorbell).
   version: "1.0.0"
   description: |
     Executable collection for the Chacon cloud WebSocket protocol.

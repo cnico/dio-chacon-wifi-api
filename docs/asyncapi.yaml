@@ -5,7 +5,7 @@ info:
   version: "1.0.0"
   description: |
     WebSocket protocol of Chacon's cloud service to connect and control DIO devices:
-    shutters and light/plug switches.
+    shutters, light/plug switches and the doorbell.
 
     Operations are described from the server's perspective: `receive` operations
     are client requests handled by the server, `send` operations are unsolicited
@@ -17,8 +17,8 @@ info:
     - Request sent by the client: `{"method": "...", "path": "...", "parameters": {}, "id": N}`.
       The `id` is incremented per request and echoed in the matching response.
     - Response sent by the server: `{"id": N, "status": 200, "data": ...}`.
-    - The server also pushes unsolicited `deviceState` / `update` events when a
-      device state changes.
+    - The server also pushes unsolicited `deviceState` / `update` events, in particular
+      when the doorbell rings.
 
     Security considerations:
 
@@ -201,8 +201,8 @@ operations:
     channel:
       $ref: '#/channels/ws'
     summary: |
-      Device state pushed by the server when a device changes: shutter movement
-      or switch toggled.
+      Device state pushed by the server when a device changes: shutter movement,
+      switch toggled, or the doorbell ringing (`gw.r.lastEvent` with type `ring`).
     messages:
       - $ref: '#/channels/ws/messages/deviceStateUpdate'
 
@@ -311,6 +311,25 @@ components:
                 type: object
                 additionalProperties:
                   $ref: '#/components/schemas/DeviceState'
+      examples:
+        - name: doorbell
+          payload:
+            id: 1
+            status: 200
+            data:
+              Tuya_bf4fe098cdaba2c50eajah:
+                rt: oic.d.videoDoorbell
+                di: Tuya_bf4fe098cdaba2c50eajah
+                provider: Tuya
+                rc: 1
+                links:
+                  - rt: gw.r.lastEvent
+                    href: lastEvent
+                    type: ring
+                    ts: "2026-05-22T08:20:08.667Z"
+                    data:
+                      reason: null
+                      image: "https://.../1779438008590.jpeg"
 
     ShutterMoveRequest:
       title: Shutter move request
@@ -436,18 +455,21 @@ components:
           data:
             $ref: '#/components/schemas/DeviceState'
       examples:
-        - name: shutterMoved
+        - name: doorbellRing
           payload:
             name: deviceState
             action: update
             data:
-              di: L4HActuator_abcdef1234567890
+              di: Tuya_bf4fe098cdaba2c50eajah
               rc: 1
               links:
-                - rt: oic.r.openlevel
-                  openLevel: 69
-                - rt: oic.r.movement.linear
-                  movement: down
+                - rt: gw.r.lastEvent
+                  href: lastEvent
+                  type: ring
+                  ts: "2026-05-22T10:21:45.714Z"
+                  data:
+                    reason: null
+                    image: "https://.../1779445305714.jpeg"
 
   securitySchemes:
     sessionTokenQuery:
@@ -517,7 +539,7 @@ components:
           type: string
         provider:
           type: string
-          description: L4HActuator for DIO actuators.
+          description: L4HActuator for DIO actuators, Tuya for the doorbell.
         name:
           type: string
         modelName:
@@ -544,7 +566,7 @@ components:
       type: object
       description: |
         A device resource. `rt` is the resource type, `href` its name. Other fields
-        depend on `rt`: `openLevel`, `movement` or `value`.
+        depend on `rt`: `openLevel`, `movement`, `value`, or `type`/`ts`/`data` for events.
       properties:
         rt:
           type: string
@@ -557,7 +579,7 @@ components:
       properties:
         rt:
           type: string
-          description: e.g. `oic.d.blind` or `oic.d.switch`.
+          description: e.g. `oic.d.blind`, `oic.d.switch`, `oic.d.videoDoorbell`.
         di:
           type: string
         provider:

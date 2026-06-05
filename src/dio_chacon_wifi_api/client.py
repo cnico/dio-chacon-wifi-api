@@ -6,6 +6,7 @@ import logging
 from asyncio import Lock
 from asyncio import Queue
 from typing import Any
+from urllib.parse import urlsplit
 
 from .const import DeviceTypeEnum
 from .const import DIOCHACON_WS_URL
@@ -18,6 +19,27 @@ from .session import DIOChaconClientSession
 _LOGGER = logging.getLogger(__name__)
 
 
+def _validated_image_url(url: Any) -> str | None:
+    """Returns the image URL only when its scheme is https and it carries no embedded credentials.
+
+    The helper guards against the most common mis-parses of a raw URL string
+    (non-https scheme, scheme written in mixed case, URL with userinfo). It
+    does not validate the host or the network reachability of the URL.
+    Consumers are still expected to apply their own policy before fetching
+    or rendering the URL.
+    """
+    if not isinstance(url, str):
+        return None
+    parsed = urlsplit(url)
+    if parsed.scheme.lower() != "https":
+        return None
+    if not parsed.hostname:
+        return None
+    if parsed.username or parsed.password:
+        return None
+    return url
+
+
 class DIOChaconAPIClient:
     """Client to the DIO Chacon wifi API.
     It is mainly a proxy to the chacon's cloud server.
@@ -26,10 +48,11 @@ class DIOChaconAPIClient:
 
     def __init__(
         self,
-        login_email: str,
-        password: str,
+        login_email: str = None,
+        password: str = None,
         service_name: str = "python_generic",
         callback_device_state: callable = None,
+        session_token: str = None,
     ) -> None:
         """Initialize the client API. Actually do nothing but storing informations.
         The effective authentication and connection are lazyly achieved.
@@ -39,12 +62,16 @@ class DIOChaconAPIClient:
             password: string containing your password in DIO app
             service_name: arbitrary string identifying this client
             callback_device_state: the callback method that will be called for server side events
+            session_token: token obtained from the HTTP login, used to authenticate
+                the websocket instead of the email and password
         """
         self._login_email: str = login_email
         self._password: str = password
+        self._session_token: str = session_token
         self._service_name: str = service_name
         self._callback_device_state: callable = callback_device_state
         self._callback_device_state_by_device: dict[str, callable] = {}
+        self._device_types: dict[str, str] = {}
         self._session: DIOChaconClientSession | None = None
         # Unique message id for request / response correlation
         self._id: int = 0
@@ -80,7 +107,11 @@ class DIOChaconAPIClient:
                     _LOGGER.debug("Session creation via init_session")
 
                     session = DIOChaconClientSession(
-                        self._login_email, self._password, self._service_name, self._message_received_callback
+                        self._login_email,
+                        self._password,
+                        self._service_name,
+                        self._message_received_callback,
+                        self._session_token,
                     )
                     # Stores session to be able to call disconnect whatever happens next (ok or ko auth)
                     self._session = session
@@ -108,6 +139,31 @@ class DIOChaconAPIClient:
 
                     _LOGGER.debug("End of session creation via init_session")
 
+    @staticmethod
+    def _extract_links_state(links: list) -> dict:
+        """Maps the known device links coming from the server into flat state keys.
+
+        The returned dict carries a key only when the corresponding link is present
+        in the payload (and, for `last_event_image`, when the URL is also a safe
+        https URL per `_validated_image_url`). Consumers can therefore use `in`
+        to distinguish a missing value from a falsy one.
+        """
+        state = {}
+        for link in links:
+            if link["rt"] == "oic.r.openlevel":
+                state["openlevel"] = link["openLevel"]
+            if link["rt"] == "oic.r.movement.linear":
+                state["movement"] = link["movement"]
+            if link["rt"] == "oic.r.switch.binary":
+                state["is_on"] = link["value"] == SwitchOnOffEnum.ON.value
+            if link["rt"] == "gw.r.lastEvent":
+                state["last_event_type"] = link["type"]
+                state["last_event_timestamp"] = link["ts"]
+                image = _validated_image_url(link.get("data", {}).get("image"))
+                if image is not None:
+                    state["last_event_image"] = image
+        return state
+
     def _message_received_callback(self, data: Any) -> None:
         """The callback called whenever a server side message is received.
         Parameters:
@@ -130,14 +186,9 @@ class DIOChaconAPIClient:
             result = {}
             device_data = data["data"]
             result["id"] = device_data["di"]
+            result["type"] = self._device_types.get(result["id"])
             result["connected"] = device_data["rc"] == 1
-            for link in device_data["links"]:
-                if link["rt"] == "oic.r.openlevel":
-                    result["openlevel"] = link["openLevel"]
-                if link["rt"] == "oic.r.movement.linear":
-                    result["movement"] = link["movement"]
-                if link["rt"] == "oic.r.switch.binary":
-                    result["is_on"] = link["value"] == SwitchOnOffEnum.ON.value
+            result.update(self._extract_links_state(device_data["links"]))
 
             sent = False
 
@@ -241,7 +292,11 @@ class DIOChaconAPIClient:
             with_state: True to return the detailed states like shutter position and switches on or off.
 
         Returns:
-            A list of tuples composed of id, name, type, openlevel and movement for shutter, is_on for switches.
+            A dict keyed by device id, with id, name, type, model and (when with_state is True)
+            connected plus the device-specific state keys: openlevel and movement for shutters,
+            is_on for switches, last_event_type / last_event_timestamp / last_event_image for
+            doorbells. State keys are present only when the underlying link carries a value,
+            so `last_event_image` is absent when the doorbell has no camera or the URL is unsafe.
         """
 
         raw_results = await self._send_ws_message("GET", "/device", {})
@@ -262,19 +317,13 @@ class DIOChaconAPIClient:
                 result["type"] = device_type.value  # Converts type to our constant definition
                 result["model"] = device["modelName"] + "_" + device["softwareVersion"]
                 results[id] = result
+                self._device_types[id] = device_type.value
 
         if with_state:
             details = await self.get_status_details(ids, device_infos=results)
             for id in ids:
-                if id not in details:
-                    continue
-
-                results[id]["connected"] = details[id]["connected"]
-                if "openlevel" in details[id]:
-                    results[id]["openlevel"] = details[id]["openlevel"]
-                    results[id]["movement"] = details[id]["movement"]
-                if "is_on" in details[id]:
-                    results[id]["is_on"] = details[id]["is_on"]
+                if id in details:
+                    results[id].update(details[id])
 
         return results
 
@@ -287,7 +336,11 @@ class DIOChaconAPIClient:
             device_infos: the devices infos (name and model) for requested ids. Used only to produce a log.
 
         Returns:
-            A list of tuples composed of id, connected ; openlevel and movement for shutter, is_on for switch.
+            A dict keyed by device id, with id, connected and the device-specific state keys:
+            openlevel and movement for shutters, is_on for switches, last_event_type /
+            last_event_timestamp / last_event_image for doorbells. State keys are present
+            only when the underlying link carries a value, so `last_event_image` is absent
+            when the doorbell has no camera or the URL is unsafe.
         """
 
         parameters = {"devices": ids}
@@ -315,19 +368,15 @@ class DIOChaconAPIClient:
                 )
 
                 result["connected"] = False
-                result["openlevel"] = 0
-                result["movement"] = ShutterMoveEnum.STOP.value
-                result["is_on"] = SwitchOnOffEnum.ON.value
+                if device_type in ("Unknown", DeviceTypeEnum.SHUTTER.value):
+                    result["openlevel"] = 0
+                    result["movement"] = ShutterMoveEnum.STOP.value
+                if device_type in ("Unknown", DeviceTypeEnum.SWITCH_LIGHT.value, DeviceTypeEnum.SWITCH_PLUG.value):
+                    result["is_on"] = SwitchOnOffEnum.ON.value
             else:
                 # Nominal case
                 result["connected"] = device_data["rc"] == 1
-                for link in device_data["links"]:
-                    if link["rt"] == "oic.r.openlevel":
-                        result["openlevel"] = link["openLevel"]
-                    if link["rt"] == "oic.r.movement.linear":
-                        result["movement"] = link["movement"]
-                    if link["rt"] == "oic.r.switch.binary":
-                        result["is_on"] = link["value"] == SwitchOnOffEnum.ON.value
+                result.update(self._extract_links_state(device_data["links"]))
 
             results[device_key] = result
 

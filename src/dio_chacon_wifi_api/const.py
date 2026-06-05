@@ -7,11 +7,13 @@ DIOCHACON_WS_URL = "wss://l4hfront-prod.chacon.cloud/ws"
 
 class DeviceTypeEnum(Enum):
 
+    @staticmethod
     def from_dio_api(label: str):
         dict_array = [
             {'label': ".wifi.shutter.", 'code': "SHUTTER"},
             {'label': ".wifi.genericSwitch.", 'code': "SWITCH_LIGHT"},
             {'label': ".wifi.plug.", 'code': "SWITCH_PLUG"},
+            {'label': ".wifi.doorBell.", 'code': "DOORBELL"},
         ]
         for d in dict_array:
             if d['label'] in label:
@@ -28,6 +30,7 @@ class DeviceTypeEnum(Enum):
     SHUTTER = "SHUTTER"
     SWITCH_LIGHT = "SWITCH_LIGHT"
     SWITCH_PLUG = "SWITCH_PLUG"
+    DOORBELL = "DOORBELL"
     UNKNOWN = "UNKNOWN"
 
 

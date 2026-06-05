@@ -16,7 +16,7 @@ The cool thing about their device is that they have RF (433Mhz, used by remote c
 
 The wifi protocol is cloud based with their server and quite reactive through permanent connections (via websockets).
 
-This project is a simple implementation, based on the Wifi protocol, of a python client to give the possibility to connect and acts on the devices. It currently supports switches (plugs or wall box for lights) and shutters. It can lists all registered devices (via the mobile app), get their status (on/off ; open level) and act on them (switch on/off ; move up/down/stop cover or move a given percentage of openess).
+This project is a simple implementation, based on the Wifi protocol, of a python client to give the possibility to connect and acts on the devices. It currently supports switches (plugs or wall box for lights), shutters and the doorbell. It can lists all registered devices (via the mobile app), get their status (on/off ; open level ; doorbell ring event) and act on them (switch on/off ; move up/down/stop cover or move a given percentage of openess).
 
 It is used in a [HomeAssistant](<https://home-assistant.io/>) integration but is also usable in other automation platforms (jeedom, etc).
 

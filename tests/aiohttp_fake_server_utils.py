@@ -98,6 +98,13 @@ async def websocket_messages_handler(ws: aiohttp.web_ws.WebSocketResponse, recor
                 response["data"][2]["type"] = ".dio1.camera.unknown"
                 response["data"][2]["modelName"] = "CERNwd-3B"
                 response["data"][2]["softwareVersion"] = "X.0.X"
+                # Add one doorbell
+                response["data"].append({})
+                response["data"][3]["id"] = "Tuya_idmock4"
+                response["data"][3]["name"] = "Doorbell mock 4"
+                response["data"][3]["type"] = ".wifi.doorBell.camera.videostream."
+                response["data"][3]["modelName"] = "DIOVDP-B03"
+                response["data"][3]["softwareVersion"] = "Wifi: 1.1.2, MCU: 1.1.2"
 
                 _LOGGER.debug("MOCK Server WS : response /device to send. %s", response)
                 await ws.send_str(json.dumps(response))
@@ -122,6 +129,17 @@ async def websocket_messages_handler(ws: aiohttp.web_ws.WebSocketResponse, recor
                 response["data"]["L4HActuator_idmock2"]["links"].append({})
                 response["data"]["L4HActuator_idmock2"]["links"][0]["rt"] = "oic.r.switch.binary"
                 response["data"]["L4HActuator_idmock2"]["links"][0]["value"] = 0
+                response["data"]["Tuya_idmock4"] = {}
+                response["data"]["Tuya_idmock4"]["rc"] = 1
+                response["data"]["Tuya_idmock4"]["links"] = list()
+                response["data"]["Tuya_idmock4"]["links"].append({})
+                response["data"]["Tuya_idmock4"]["links"][0]["rt"] = "gw.r.lastEvent"
+                response["data"]["Tuya_idmock4"]["links"][0]["type"] = "ring"
+                response["data"]["Tuya_idmock4"]["links"][0]["ts"] = "2026-05-22T08:20:08.667Z"
+                response["data"]["Tuya_idmock4"]["links"][0]["data"] = {
+                    "reason": None,
+                    "image": "https://mock.example.com/ring.jpeg",
+                }
 
                 _LOGGER.debug("MOCK Server WS : response /device/states to send. %s", response)
                 await ws.send_str(json.dumps(response))
@@ -229,7 +247,15 @@ async def websocket_messages_handler(ws: aiohttp.web_ws.WebSocketResponse, recor
     _LOGGER.debug('MOCK Server WS : Websocket connection closed')
 
 
-async def websocket_handler(request: web.Request, recording_queue: Queue):
+async def pump_push_queue(ws: aiohttp.web_ws.WebSocketResponse, push_queue: Queue) -> None:
+    while not ws.closed:
+        message = await push_queue.get()
+        _LOGGER.debug("MOCK Server WS : pushing queued message. %s", message)
+        await ws.send_str(json.dumps(message))
+        push_queue.task_done()
+
+
+async def websocket_handler(request: web.Request, recording_queue: Queue, push_queue: Queue | None = None):
     _LOGGER.debug('MOCK Server WS : Websocket connection starting')
     ws = web.WebSocketResponse()
     await ws.prepare(request)
@@ -240,19 +266,29 @@ async def websocket_handler(request: web.Request, recording_queue: Queue):
     else:
         _LOGGER.debug('MOCK Server WS : Sending connection success')
         await ws.send_str('{"name":"connection","action":"success","data":""}')
+
+    pump_task = asyncio.create_task(pump_push_queue(ws, push_queue)) if push_queue is not None else None
+
     await asyncio.create_task(websocket_messages_handler(ws, recording_queue))
+
+    if pump_task is not None:
+        pump_task.cancel()
+        try:
+            await pump_task
+        except asyncio.CancelledError:
+            pass
 
     return ws
 
 
-async def run_fake_http_server(aiohttp_server, recording_queue: Queue) -> None:
+async def run_fake_http_server(aiohttp_server, recording_queue: Queue, push_queue: Queue | None = None) -> None:
 
     _LOGGER.debug("Starting Mock server...")
 
     app = web.Application()
 
     call = partial(endpoint, recording_queue=recording_queue)
-    call_ws = partial(websocket_handler, recording_queue=recording_queue)
+    call_ws = partial(websocket_handler, recording_queue=recording_queue, push_queue=push_queue)
     app.add_routes([web.route("*", "/api/{tail:.*}", call), web.route("*", "/ws", call_ws)])
 
     await aiohttp_server(app, port=MOCK_PORT)
